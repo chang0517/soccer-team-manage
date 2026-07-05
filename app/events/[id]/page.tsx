@@ -489,7 +489,10 @@ export default function EventDetailPage({
 
       {event.type === "match" && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-4">
-          <h2 className="mb-3 text-base font-bold">경기 기록</h2>
+          <h2 className="mb-1 text-base font-bold">경기 기록</h2>
+          <p className="mb-3 text-xs text-zinc-400">
+            출전 체크만 해도 1점, 골·어시 각 1점이 더해져요.
+          </p>
           <div className="mb-4 flex items-center gap-3">
             <label className="text-sm font-semibold">득점</label>
             <input

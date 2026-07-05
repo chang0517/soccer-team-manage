@@ -1,6 +1,7 @@
 import type { EventItem, Member, RankingRow, RecordRow } from "./types";
 
 export const RULES = {
+  participation: 1, // 경기 출전 자체
   goal: 1,
   assist: 1,
   cleanSheetDefence: 1, // GK · 센터백 · 윙백
@@ -8,7 +9,7 @@ export const RULES = {
 };
 
 /**
- * 점수 규칙: 골 1점, 어시스트 1점.
+ * 점수 규칙: 출전 1점, 골 1점, 어시스트 1점.
  * 무실점(클린시트) 경기에 출전한 GK·센터백·윙백은 1점, 수미는 0.5점.
  */
 export function computeRanking(
@@ -41,7 +42,10 @@ export function computeRanking(
   const out = [...rows.values()];
   for (const row of out) {
     row.total =
-      row.goals * RULES.goal + row.assists * RULES.assist + row.cleanPts;
+      row.played * RULES.participation +
+      row.goals * RULES.goal +
+      row.assists * RULES.assist +
+      row.cleanPts;
   }
   out.sort(
     (a, b) =>
