@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { parseMatchNotesWithLocalLlm } from "@/lib/llm";
+import { useState } from "react";
 import type { Member } from "@/lib/types";
 
 interface PreviewItem {
@@ -16,8 +15,6 @@ interface ScoreGuess {
   scored: number | null;
   conceded: number | null;
 }
-
-const DEFAULT_ENDPOINT = "http://localhost:11434/v1/chat/completions";
 
 function matchMembers(token: string, members: Member[]): Member[] {
   const exact = members.filter((m) => m.name === token);
@@ -36,8 +33,6 @@ export default function AiRecordImport({
   ) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [endpoint, setEndpoint] = useState(DEFAULT_ENDPOINT);
-  const [model, setModel] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,28 +40,22 @@ export default function AiRecordImport({
   const [scoreGuess, setScoreGuess] = useState<ScoreGuess | null>(null);
   const [appliedMsg, setAppliedMsg] = useState("");
 
-  useEffect(() => {
-    setEndpoint(localStorage.getItem("ravenLlmEndpoint") || DEFAULT_ENDPOINT);
-    setModel(localStorage.getItem("ravenLlmModel") || "");
-  }, []);
-
-  const saveSettings = (e: string, m: string) => {
-    setEndpoint(e);
-    setModel(m);
-    localStorage.setItem("ravenLlmEndpoint", e);
-    localStorage.setItem("ravenLlmModel", m);
-  };
-
   const analyze = async () => {
-    if (!notes.trim() || !model.trim()) return;
+    if (!notes.trim()) return;
     setLoading(true);
     setError("");
     setPreview([]);
     setScoreGuess(null);
     try {
-      const result = await parseMatchNotesWithLocalLlm(endpoint, model, notes);
+      const res = await fetch("/api/ai/parse-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "분석에 실패했어요.");
       setPreview(
-        result.players.map((it) => {
+        result.players.map((it: { name: string; goals: number; assists: number }) => {
           const candidates = matchMembers(it.name, members);
           return {
             token: it.name,
@@ -81,11 +70,7 @@ export default function AiRecordImport({
         setScoreGuess({ scored: result.scored, conceded: result.conceded });
       }
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "분석에 실패했어요. 로컬 LLM이 켜져 있는지, 이 브라우저가 그 컴퓨터에서 열려있는지 확인해 주세요."
-      );
+      setError(e instanceof Error ? e.message : "분석에 실패했어요.");
     } finally {
       setLoading(false);
     }
@@ -102,8 +87,7 @@ export default function AiRecordImport({
     if (results.length === 0 && !scoreGuess) return;
     onApply(results, scoreGuess);
     const scoreNote =
-      scoreGuess &&
-      (scoreGuess.scored != null || scoreGuess.conceded != null)
+      scoreGuess && (scoreGuess.scored != null || scoreGuess.conceded != null)
         ? ` · 스코어 ${scoreGuess.scored ?? "?"}:${scoreGuess.conceded ?? "?"}`
         : "";
     setAppliedMsg(
@@ -116,7 +100,7 @@ export default function AiRecordImport({
   };
 
   const input =
-    "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm";
+    "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm resize-none";
   const scoreInput =
     "w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-center text-sm";
 
@@ -131,35 +115,11 @@ export default function AiRecordImport({
       {open && (
         <div className="mt-3 space-y-3 rounded-xl bg-zinc-50 p-3">
           <p className="text-xs text-zinc-500">
-            이 기능은 이 브라우저를 열고 있는 컴퓨터에서 직접 로컬 LLM(예:
-            Ollama)을 호출해요. 서버가 아니라 브라우저에서 나가는 요청이라,
-            로컬 LLM이 실행 중인 바로 그 컴퓨터에서만 동작해요.
+            메모를 붙여넣으면 우리 팀 서버가 맥미니의 Ollama로 분석해요. 폰이든
+            어디서든 이 사이트에 접속만 하면 똑같이 동작해요.
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold text-zinc-500">
-                엔드포인트
-              </label>
-              <input
-                className={input}
-                value={endpoint}
-                onChange={(e) => saveSettings(e.target.value, model)}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-zinc-500">
-                모델명
-              </label>
-              <input
-                className={input}
-                placeholder="예: llama3.1"
-                value={model}
-                onChange={(e) => saveSettings(endpoint, e.target.value)}
-              />
-            </div>
-          </div>
           <textarea
-            className={`${input} resize-none`}
+            className={input}
             rows={5}
             placeholder={
               "경기 기록 메모를 붙여넣으세요. 예)\n1Q: 동한 골 / 현민 어시\n종료 3:0 승 (무실점)"
@@ -169,7 +129,7 @@ export default function AiRecordImport({
           />
           <button
             onClick={analyze}
-            disabled={loading || !notes.trim() || !model.trim()}
+            disabled={loading || !notes.trim()}
             className="w-full rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {loading ? "분석 중…" : "분석하기"}

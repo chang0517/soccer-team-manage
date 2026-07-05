@@ -51,19 +51,31 @@ function toNullableNumber(v: unknown): number | null {
 }
 
 /**
- * 브라우저에서 직접 로컬 LLM(OpenAI 호환 /v1/chat/completions)을 호출한다.
- * 이 앱은 Vercel(클라우드)에 배포되어 있어 서버에서는 사용자의 localhost에
- * 접근할 수 없다 — 그래서 이 요청은 반드시 사용자의 브라우저(그 LLM이
- * 실행 중인 바로 그 컴퓨터)에서 클라이언트 사이드로 나가야 한다.
+ * 서버(Vercel)에서 팀 맥미니의 Ollama 게이트웨이를 호출한다.
+ * 게이트웨이는 Bearer 토큰으로 보호되어 있고, 내부적으로 로컬 Ollama의
+ * OpenAI 호환 /v1/chat/completions로 요청을 그대로 전달한다.
+ * 브라우저가 아니라 서버가 호출하므로 사용자는 어떤 기기에서든 쓸 수 있다.
  */
-export async function parseMatchNotesWithLocalLlm(
-  endpoint: string,
-  model: string,
+export async function parseMatchNotesViaGateway(
   notes: string
 ): Promise<LlmParseResult> {
-  const res = await fetch(endpoint, {
+  const gatewayUrl = process.env.OLLAMA_GATEWAY_URL;
+  const secret = process.env.OLLAMA_GATEWAY_SECRET;
+  const model = process.env.OLLAMA_MODEL || "gemma4";
+
+  if (!gatewayUrl || !secret) {
+    throw new Error(
+      "서버에 OLLAMA_GATEWAY_URL / OLLAMA_GATEWAY_SECRET 환경변수가 설정되어 있지 않아요."
+    );
+  }
+
+  const res = await fetch(gatewayUrl.replace(/\/$/, ""), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(45000),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${secret}`,
+    },
     body: JSON.stringify({
       model,
       stream: false,
@@ -74,7 +86,7 @@ export async function parseMatchNotesWithLocalLlm(
     }),
   });
   if (!res.ok) {
-    throw new Error(`로컬 LLM 응답 오류 (HTTP ${res.status})`);
+    throw new Error(`게이트웨이 응답 오류 (HTTP ${res.status})`);
   }
   const data = await res.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
