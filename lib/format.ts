@@ -5,10 +5,11 @@ export function formatDate(date: string, time?: string): string {
   return time ? `${base} ${time}` : base;
 }
 
+// 서버가 어느 시간대에서 돌든 항상 한국 시간(KST) 기준 "오늘"을 반환한다.
 export function todayStr(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(
+    new Date()
+  );
 }
 
 export function daysUntil(date: string): number {
