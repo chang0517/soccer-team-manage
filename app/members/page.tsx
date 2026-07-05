@@ -11,7 +11,7 @@ interface Draft {
   pos2: PosGroup;
 }
 
-const EMPTY: Draft = { name: "", backNo: "", pos1: "CM", pos2: "DF" };
+const EMPTY: Draft = { name: "", backNo: "", pos1: "CB", pos2: "WB" };
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);

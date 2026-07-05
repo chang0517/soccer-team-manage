@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import VoteButtons from "@/components/VoteButtons";
 import { useMyId } from "@/components/useMyId";
 import { formatDate, dDayLabel } from "@/lib/format";
-import { FORMATION_SLOTS, slotGroup } from "@/lib/squad";
-import { POS_GROUPS, POS_LABELS } from "@/lib/types";
+import { FORMATION_SLOTS, slotPositionFor } from "@/lib/squad";
+import { POS_GROUPS, POS_SHORT } from "@/lib/types";
 import type {
   EventItem,
   Member,
@@ -61,10 +61,14 @@ export default function EventDetailPage({
     setConceded(ev.conceded != null ? String(ev.conceded) : "");
 
     const recByMember = new Map(recs.map((r) => [r.memberId, r]));
+    const memberById2 = new Map((mems as Member[]).map((m) => [m.id, m]));
     const squadPos = new Map<number, string>();
     if (ev.squad) {
       for (const s of ev.squad.starters) {
-        if (s.memberId != null) squadPos.set(s.memberId, slotGroup(s.slotId));
+        const mem = s.memberId != null ? memberById2.get(s.memberId) : undefined;
+        if (s.memberId != null && mem) {
+          squadPos.set(s.memberId, slotPositionFor(s.slotId, mem));
+        }
       }
     }
     setDrafts(
@@ -285,7 +289,7 @@ export default function EventDetailPage({
                     >
                       <div
                         className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold ${
-                          slot.group === "GK"
+                          slot.accepts.includes("GK")
                             ? "bg-amber-400 text-amber-950"
                             : "bg-white text-emerald-900"
                         }`}
@@ -319,7 +323,7 @@ export default function EventDetailPage({
                     return (
                       <div key={slot.id} className="flex items-center gap-2">
                         <span className="w-16 shrink-0 text-xs font-bold text-zinc-500">
-                          {slot.label} · {POS_LABELS[slot.group].slice(0, 3)}
+                          {slot.label} · {slot.accepts.map((g) => POS_SHORT[g]).join("/")}
                         </span>
                         <select
                           className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"

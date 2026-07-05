@@ -12,8 +12,8 @@ export async function POST(request: Request) {
   const member = await createMember({
     name: body.name.trim(),
     backNo: body.backNo ?? null,
-    pos1: body.pos1 ?? "CM",
-    pos2: body.pos2 ?? "DF",
+    pos1: body.pos1 ?? "CB",
+    pos2: body.pos2 ?? "WB",
   });
   return Response.json(member, { status: 201 });
 }

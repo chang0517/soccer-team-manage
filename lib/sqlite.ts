@@ -24,8 +24,8 @@ function createDb(): Database.Database {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       back_no INTEGER,
-      pos1 TEXT NOT NULL DEFAULT 'CM',
-      pos2 TEXT NOT NULL DEFAULT 'DF'
+      pos1 TEXT NOT NULL DEFAULT 'CB',
+      pos2 TEXT NOT NULL DEFAULT 'WB'
     );
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

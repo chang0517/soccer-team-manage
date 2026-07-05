@@ -1,14 +1,25 @@
-export type PosGroup = "GK" | "DF" | "DM" | "CM" | "AM" | "FW";
+export type PosGroup = "GK" | "CB" | "WB" | "DM" | "AM" | "WG" | "ST";
 
-export const POS_GROUPS: PosGroup[] = ["GK", "DF", "DM", "CM", "AM", "FW"];
+export const POS_GROUPS: PosGroup[] = ["GK", "CB", "WB", "DM", "AM", "WG", "ST"];
 
 export const POS_LABELS: Record<PosGroup, string> = {
   GK: "골키퍼",
-  DF: "수비수",
+  CB: "센터백",
+  WB: "윙백",
   DM: "수비형 미드필더",
-  CM: "중앙 미드필더",
   AM: "공격형 미드필더",
-  FW: "공격수",
+  WG: "윙어",
+  ST: "스트라이커",
+};
+
+export const POS_SHORT: Record<PosGroup, string> = {
+  GK: "GK",
+  CB: "CB",
+  WB: "WB",
+  DM: "DM",
+  AM: "AM",
+  WG: "WG",
+  ST: "ST",
 };
 
 export interface Member {
