@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import MonthCalendar from "@/components/MonthCalendar";
 import TimePicker from "@/components/TimePicker";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
 import type { EventItem } from "@/lib/types";
@@ -20,6 +21,7 @@ export default function SchedulePage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const load = () =>
     fetch("/api/events").then((r) => r.json()).then(setEvents);
@@ -169,6 +171,29 @@ export default function SchedulePage() {
             {saving ? "저장 중…" : "일정 저장"}
           </button>
         </div>
+      )}
+
+      <MonthCalendar
+        events={events}
+        todayStr={todayStr()}
+        selectedDate={selectedDate}
+        onSelectDate={(d) => setSelectedDate(d === selectedDate ? null : d)}
+      />
+
+      {selectedDate && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-zinc-500">
+            {formatDate(selectedDate)} 일정
+          </h2>
+          {events.filter((e) => e.date === selectedDate).length === 0 && (
+            <p className="text-sm text-zinc-400">이 날짜에는 일정이 없어요.</p>
+          )}
+          {events
+            .filter((e) => e.date === selectedDate)
+            .map((e) => (
+              <EventRow key={e.id} e={e} />
+            ))}
+        </section>
       )}
 
       <section className="space-y-3">
