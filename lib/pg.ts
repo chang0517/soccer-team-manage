@@ -3,6 +3,7 @@ import { ROSTER } from "./roster";
 import type {
   EventItem,
   Member,
+  MvpVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
@@ -67,6 +68,12 @@ async function init() {
       assists INTEGER NOT NULL DEFAULT 0,
       position TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (event_id, member_id)
+    );
+    CREATE TABLE IF NOT EXISTS mvp_votes (
+      event_id INTEGER NOT NULL,
+      voter_id INTEGER NOT NULL,
+      votee_id INTEGER NOT NULL,
+      PRIMARY KEY (event_id, voter_id)
     );
   `);
   await pool.query(
@@ -137,6 +144,10 @@ export async function deleteMember(id: number) {
   await pool.query("DELETE FROM members WHERE id=$1", [id]);
   await pool.query("DELETE FROM votes WHERE member_id=$1", [id]);
   await pool.query("DELETE FROM records WHERE member_id=$1", [id]);
+  await pool.query(
+    "DELETE FROM mvp_votes WHERE voter_id=$1 OR votee_id=$1",
+    [id]
+  );
 }
 
 type EventDbRow = {
@@ -210,6 +221,7 @@ export async function deleteEvent(id: number) {
   await pool.query("DELETE FROM events WHERE id=$1", [id]);
   await pool.query("DELETE FROM votes WHERE event_id=$1", [id]);
   await pool.query("DELETE FROM records WHERE event_id=$1", [id]);
+  await pool.query("DELETE FROM mvp_votes WHERE event_id=$1", [id]);
 }
 
 export async function getVotes(eventId: number): Promise<VoteRow[]> {
@@ -288,4 +300,39 @@ export async function getAllRecords(): Promise<RecordRow[]> {
   const pool = await ready();
   const { rows } = await pool.query("SELECT * FROM records");
   return rows.map(toRecord);
+}
+
+function toMvpVote(r: {
+  event_id: number;
+  voter_id: number;
+  votee_id: number;
+}): MvpVoteRow {
+  return { eventId: r.event_id, voterId: r.voter_id, voteeId: r.votee_id };
+}
+
+export async function getMvpVotes(eventId: number): Promise<MvpVoteRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM mvp_votes WHERE event_id=$1",
+    [eventId]
+  );
+  return rows.map(toMvpVote);
+}
+
+export async function setMvpVote(
+  eventId: number,
+  voterId: number,
+  voteeId: number
+) {
+  const pool = await ready();
+  await pool.query(
+    "INSERT INTO mvp_votes (event_id, voter_id, votee_id) VALUES ($1, $2, $3) ON CONFLICT (event_id, voter_id) DO UPDATE SET votee_id=EXCLUDED.votee_id",
+    [eventId, voterId, voteeId]
+  );
+}
+
+export async function getAllMvpVotes(): Promise<MvpVoteRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM mvp_votes");
+  return rows.map(toMvpVote);
 }

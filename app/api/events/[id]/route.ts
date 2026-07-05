@@ -1,6 +1,7 @@
 import {
   deleteEvent,
   getEvent,
+  getMvpVotes,
   getRecords,
   getVotes,
   listMembers,
@@ -43,6 +44,7 @@ export async function GET(
     event,
     votes: await getVotes(event.id),
     records: await getRecords(event.id),
+    mvpVotes: await getMvpVotes(event.id),
   });
 }
 

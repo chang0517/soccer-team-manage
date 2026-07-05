@@ -77,11 +77,18 @@ export interface RecordRow {
   position: PosGroup | "";
 }
 
+export interface MvpVoteRow {
+  eventId: number;
+  voterId: number;
+  voteeId: number;
+}
+
 export interface RankingRow {
   member: Member;
   played: number;
   goals: number;
   assists: number;
   cleanPts: number;
+  mvpCount: number;
   total: number;
 }

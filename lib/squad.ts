@@ -1,4 +1,5 @@
 import type { Member, PosGroup, QuarterSquad, SquadData } from "./types";
+import { POS_SHORT } from "./types";
 
 export const QUARTER_COUNT = 4;
 
@@ -10,25 +11,36 @@ export interface SlotDef {
   y: number;
 }
 
-// 4-1-2-1-2 (다이아몬드): GK 1 / CB·WB 4 / DM 1 / (DM·AM) 2 / AM 1 / (ST·WG) 2
-// 다이아몬드형 미드필더에는 순수 측면 자리가 없어, 좌우 CM은 수미·공미 겸업으로,
-// 최전방 2자리는 스트라이커·윙어 겸업으로 받는다. 폭은 윙백이 담당한다.
+// 4-1-2-2-1: GK 1 / CB·WB 4 / DM 1 / (DM·AM) 2 / (WG·AM) 2 / ST 1
+// 수미 한 명이 뒤에서 지키고 그 앞 두 명의 CM이 박스투박스, 좌우 두 명은
+// 공미·윙어 겸업으로 폭과 침투를 담당, 최전방엔 스트라이커 한 명만 둔다.
 export const FORMATION_SLOTS: SlotDef[] = [
   { id: "GK", accepts: ["GK"], label: "GK", x: 50, y: 91 },
   { id: "LB", accepts: ["WB"], label: "LB", x: 13, y: 72 },
   { id: "LCB", accepts: ["CB"], label: "CB", x: 37, y: 77 },
   { id: "RCB", accepts: ["CB"], label: "CB", x: 63, y: 77 },
   { id: "RB", accepts: ["WB"], label: "RB", x: 87, y: 72 },
-  { id: "DM", accepts: ["DM"], label: "DM", x: 50, y: 58 },
-  { id: "LCM", accepts: ["DM", "AM"], label: "CM", x: 26, y: 44 },
-  { id: "RCM", accepts: ["DM", "AM"], label: "CM", x: 74, y: 44 },
-  { id: "AM", accepts: ["AM"], label: "AM", x: 50, y: 31 },
-  { id: "LST", accepts: ["ST", "WG"], label: "ST", x: 33, y: 13 },
-  { id: "RST", accepts: ["ST", "WG"], label: "ST", x: 67, y: 13 },
+  { id: "DM", accepts: ["DM"], label: "DM", x: 50, y: 60 },
+  { id: "LCM", accepts: ["DM", "AM"], label: "CM", x: 30, y: 46 },
+  { id: "RCM", accepts: ["DM", "AM"], label: "CM", x: 70, y: 46 },
+  { id: "LW", accepts: ["WG", "AM"], label: "LW", x: 16, y: 26 },
+  { id: "RW", accepts: ["WG", "AM"], label: "RW", x: 84, y: 26 },
+  { id: "ST", accepts: ["ST"], label: "ST", x: 50, y: 13 },
 ];
 
 export function slotAccepts(slotId: string): PosGroup[] {
   return FORMATION_SLOTS.find((s) => s.id === slotId)?.accepts ?? [];
+}
+
+/**
+ * 슬롯 표시용 라벨. 받는 포지션이 하나뿐이고 그게 슬롯 라벨과 같으면
+ * ("GK · GK", "CB · CB" 같은 중복) 라벨 하나만 보여준다.
+ */
+export function slotDisplayLabel(slot: SlotDef): string {
+  if (slot.accepts.length === 1 && POS_SHORT[slot.accepts[0]] === slot.label) {
+    return slot.label;
+  }
+  return `${slot.label} · ${slot.accepts.map((g) => POS_SHORT[g]).join("/")}`;
 }
 
 /**

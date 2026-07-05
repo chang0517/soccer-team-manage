@@ -5,6 +5,7 @@ import { ROSTER } from "./roster";
 import type {
   EventItem,
   Member,
+  MvpVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
@@ -55,6 +56,12 @@ function createDb(): Database.Database {
       assists INTEGER NOT NULL DEFAULT 0,
       position TEXT NOT NULL DEFAULT '',
       PRIMARY KEY (event_id, member_id)
+    );
+    CREATE TABLE IF NOT EXISTS mvp_votes (
+      event_id INTEGER NOT NULL,
+      voter_id INTEGER NOT NULL,
+      votee_id INTEGER NOT NULL,
+      PRIMARY KEY (event_id, voter_id)
     );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
@@ -132,6 +139,7 @@ export function deleteMember(id: number) {
   db.prepare("DELETE FROM members WHERE id=?").run(id);
   db.prepare("DELETE FROM votes WHERE member_id=?").run(id);
   db.prepare("DELETE FROM records WHERE member_id=?").run(id);
+  db.prepare("DELETE FROM mvp_votes WHERE voter_id=? OR votee_id=?").run(id, id);
 }
 
 // ---------- events ----------
@@ -218,6 +226,7 @@ export function deleteEvent(id: number) {
   db.prepare("DELETE FROM events WHERE id=?").run(id);
   db.prepare("DELETE FROM votes WHERE event_id=?").run(id);
   db.prepare("DELETE FROM records WHERE event_id=?").run(id);
+  db.prepare("DELETE FROM mvp_votes WHERE event_id=?").run(id);
 }
 
 // ---------- votes ----------
@@ -295,4 +304,31 @@ export function getAllRecords(): RecordRow[] {
     assists: r.assists,
     position: r.position,
   }));
+}
+
+// ---------- mvp votes ----------
+type MvpVoteDbRow = { event_id: number; voter_id: number; votee_id: number };
+
+function toMvpVote(r: MvpVoteDbRow): MvpVoteRow {
+  return { eventId: r.event_id, voterId: r.voter_id, voteeId: r.votee_id };
+}
+
+export function getMvpVotes(eventId: number): MvpVoteRow[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM mvp_votes WHERE event_id=?")
+    .all(eventId) as MvpVoteDbRow[];
+  return rows.map(toMvpVote);
+}
+
+export function setMvpVote(eventId: number, voterId: number, voteeId: number) {
+  getDb()
+    .prepare(
+      "INSERT INTO mvp_votes (event_id, voter_id, votee_id) VALUES (?, ?, ?) ON CONFLICT(event_id, voter_id) DO UPDATE SET votee_id=excluded.votee_id"
+    )
+    .run(eventId, voterId, voteeId);
+}
+
+export function getAllMvpVotes(): MvpVoteRow[] {
+  const rows = getDb().prepare("SELECT * FROM mvp_votes").all() as MvpVoteDbRow[];
+  return rows.map(toMvpVote);
 }

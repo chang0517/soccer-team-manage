@@ -10,6 +10,10 @@ export default function RankingPage() {
     fetch("/api/ranking").then((r) => r.json()).then(setRows);
   }, []);
 
+  const mvpRanking = rows
+    .filter((r) => r.mvpCount > 0)
+    .sort((a, b) => b.mvpCount - a.mvpCount);
+
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-bold">시즌 랭킹</h1>
@@ -17,6 +21,28 @@ export default function RankingPage() {
         출전 1점 · 골 1점 · 어시스트 1점 · 클린시트 시 GK·센터백·윙백 1점,
         수비형 미드필더 0.5점
       </p>
+
+      {mvpRanking.length > 0 && (
+        <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <h2 className="mb-2 text-sm font-bold text-zinc-500">
+            MVP 최다 선정
+          </h2>
+          <div className="space-y-1.5">
+            {mvpRanking.map((r, i) => (
+              <div key={r.member.id} className="flex items-center gap-2 text-sm">
+                <span className="w-6 text-center">
+                  {["🥇", "🥈", "🥉"][i] ?? i + 1}
+                </span>
+                <span className="flex-1 font-semibold">{r.member.name}</span>
+                <span className="font-bold text-amber-600">
+                  {r.mvpCount}회
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
         <table className="w-full text-sm">
           <thead>
@@ -27,6 +53,7 @@ export default function RankingPage() {
               <th className="px-2 py-2.5 text-center">골</th>
               <th className="px-2 py-2.5 text-center">어시</th>
               <th className="px-2 py-2.5 text-center">CS</th>
+              <th className="px-2 py-2.5 text-center">MVP</th>
               <th className="px-3 py-2.5 text-right">총점</th>
             </tr>
           </thead>
@@ -48,6 +75,7 @@ export default function RankingPage() {
                 <td className="px-2 py-2 text-center">{r.goals}</td>
                 <td className="px-2 py-2 text-center">{r.assists}</td>
                 <td className="px-2 py-2 text-center">{r.cleanPts}</td>
+                <td className="px-2 py-2 text-center">{r.mvpCount}</td>
                 <td className="px-3 py-2 text-right font-bold text-emerald-700">
                   {r.total}
                 </td>

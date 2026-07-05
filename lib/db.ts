@@ -1,6 +1,13 @@
 import * as sqlite from "./sqlite";
 import * as pg from "./pg";
-import type { EventItem, Member, RecordRow, VoteRow, VoteStatus } from "./types";
+import type {
+  EventItem,
+  Member,
+  MvpVoteRow,
+  RecordRow,
+  VoteRow,
+  VoteStatus,
+} from "./types";
 
 // DATABASE_URL이 있으면 Postgres(Supabase), 없으면 로컬 SQLite를 쓴다.
 const usePg = !!process.env.DATABASE_URL;
@@ -59,4 +66,16 @@ export async function saveRecords(eventId: number, records: RecordRow[]) {
 }
 export async function getAllRecords(): Promise<RecordRow[]> {
   return usePg ? pg.getAllRecords() : sqlite.getAllRecords();
+}
+
+export async function getMvpVotes(eventId: number): Promise<MvpVoteRow[]> {
+  return usePg ? pg.getMvpVotes(eventId) : sqlite.getMvpVotes(eventId);
+}
+export async function setMvpVote(eventId: number, voterId: number, voteeId: number) {
+  return usePg
+    ? pg.setMvpVote(eventId, voterId, voteeId)
+    : sqlite.setMvpVote(eventId, voterId, voteeId);
+}
+export async function getAllMvpVotes(): Promise<MvpVoteRow[]> {
+  return usePg ? pg.getAllMvpVotes() : sqlite.getAllMvpVotes();
 }

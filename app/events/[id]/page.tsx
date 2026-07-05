@@ -7,11 +7,12 @@ import AiRecordImport from "@/components/AiRecordImport";
 import VoteButtons from "@/components/VoteButtons";
 import { useMyId } from "@/components/useMyId";
 import { formatDate, dDayLabel } from "@/lib/format";
-import { FORMATION_SLOTS, slotPositionFor } from "@/lib/squad";
-import { POS_GROUPS, POS_SHORT } from "@/lib/types";
+import { FORMATION_SLOTS, slotDisplayLabel, slotPositionFor } from "@/lib/squad";
+import { POS_GROUPS } from "@/lib/types";
 import type {
   EventItem,
   Member,
+  MvpVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
@@ -50,6 +51,8 @@ export default function EventDetailPage({
     pos2: PosGroup;
   }>({ name: "", pos1: "CB", pos2: "WB" });
   const [addingGuest, setAddingGuest] = useState(false);
+  const [mvpVotes, setMvpVotes] = useState<MvpVoteRow[]>([]);
+  const [mvpPick, setMvpPick] = useState("");
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m])),
@@ -66,6 +69,7 @@ export default function EventDetailPage({
     const recs: RecordRow[] = detail.records;
     setEvent(ev);
     setVotes(detail.votes);
+    setMvpVotes(detail.mvpVotes ?? []);
     setMembers(mems);
     setScored(ev.scored != null ? String(ev.scored) : "");
     setConceded(ev.conceded != null ? String(ev.conceded) : "");
@@ -113,6 +117,16 @@ export default function EventDetailPage({
   const nonVoters = members.filter(
     (m) => !votes.some((v) => v.memberId === m.id)
   );
+
+  const mvpTally = (() => {
+    const counts = new Map<number, number>();
+    for (const v of mvpVotes) counts.set(v.voteeId, (counts.get(v.voteeId) ?? 0) + 1);
+    const max = Math.max(0, ...counts.values());
+    return [...counts.entries()]
+      .map(([memberId, count]) => ({ memberId, count, isLeader: count === max && max > 0 }))
+      .sort((a, b) => b.count - a.count);
+  })();
+  const myMvpVote = mvpVotes.find((v) => v.voterId === myId)?.voteeId ?? null;
 
   const vote = async (status: VoteStatus) => {
     if (!myId) return;
@@ -196,6 +210,16 @@ export default function EventDetailPage({
     });
     setSavedMsg("기록이 저장됐어요.");
     setTimeout(() => setSavedMsg(""), 2500);
+    load();
+  };
+
+  const voteMvp = async () => {
+    if (!myId || !mvpPick) return;
+    await fetch(`/api/events/${id}/mvp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voterId: myId, voteeId: Number(mvpPick) }),
+    });
     load();
   };
 
@@ -389,7 +413,7 @@ export default function EventDetailPage({
       {event.type === "match" && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold">스쿼드 (4-1-2-1-2)</h2>
+            <h2 className="text-base font-bold">스쿼드 (4-1-2-2-1)</h2>
             <button
               onClick={regenerate}
               className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white"
@@ -476,7 +500,7 @@ export default function EventDetailPage({
                     return (
                       <div key={slot.id} className="flex items-center gap-2">
                         <span className="w-16 shrink-0 text-xs font-bold text-zinc-500">
-                          {slot.label} · {slot.accepts.map((g) => POS_SHORT[g]).join("/")}
+                          {slotDisplayLabel(slot)}
                         </span>
                         <select
                           className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
@@ -640,6 +664,62 @@ export default function EventDetailPage({
             <p className="mt-2 text-center text-sm font-semibold text-emerald-700">
               {savedMsg}
             </p>
+          )}
+        </section>
+      )}
+
+      {event.type === "match" && (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <h2 className="mb-3 text-base font-bold">MVP 투표</h2>
+          <div className="flex gap-2">
+            <select
+              className="flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+              value={mvpPick || (myMvpVote != null ? String(myMvpVote) : "")}
+              onChange={(e) => setMvpPick(e.target.value)}
+              disabled={!myId}
+            >
+              <option value="">투표할 선수 선택</option>
+              {members
+                .filter((m) => attendIds.includes(m.id) && m.id !== myId)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.isGuest ? " · 용병" : ""}
+                  </option>
+                ))}
+            </select>
+            <button
+              onClick={voteMvp}
+              disabled={!myId || !mvpPick}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              투표
+            </button>
+          </div>
+          {!myId && (
+            <p className="mt-2 text-xs text-zinc-400">
+              홈 화면에서 내 이름을 먼저 선택해 주세요.
+            </p>
+          )}
+
+          {mvpTally.length > 0 && (
+            <div className="mt-4 space-y-1.5">
+              {mvpTally.map((t) => {
+                const m = memberById.get(t.memberId);
+                return (
+                  <div
+                    key={t.memberId}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    {t.isLeader && <span>🏆</span>}
+                    <span className={t.isLeader ? "font-bold" : ""}>
+                      {m?.name ?? "?"}
+                    </span>
+                    <span className="text-xs text-zinc-400">{t.count}표</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
       )}
