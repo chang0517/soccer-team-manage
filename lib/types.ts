@@ -38,9 +38,13 @@ export interface SquadSlotAssign {
   memberId: number | null;
 }
 
-export interface SquadData {
+export interface QuarterSquad {
   starters: SquadSlotAssign[];
   bench: number[];
+}
+
+export interface SquadData {
+  quarters: QuarterSquad[]; // 1~4쿼터, 각각 독립된 스쿼드
   generatedAt: string;
 }
 

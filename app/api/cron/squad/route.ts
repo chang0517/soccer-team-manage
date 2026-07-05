@@ -8,7 +8,8 @@ export async function GET() {
   let generated = 0;
   for (const e of events) {
     const d = daysUntil(e.date);
-    if (e.type !== "match" || e.squad || d < 0 || d > 3) continue;
+    const hasValidSquad = !!e.squad && Array.isArray(e.squad.quarters);
+    if (e.type !== "match" || hasValidSquad || d < 0 || d > 3) continue;
     const attendIds = new Set(
       (await getVotes(e.id))
         .filter((v) => v.status === "attend")

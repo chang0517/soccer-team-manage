@@ -42,6 +42,7 @@ export default function EventDetailPage({
   const [conceded, setConceded] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState("");
   const [myId, setMyId] = useMyId();
+  const [activeQuarter, setActiveQuarter] = useState(0);
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState<{
     name: string;
@@ -73,10 +74,11 @@ export default function EventDetailPage({
     const memberById2 = new Map((mems as Member[]).map((m) => [m.id, m]));
     const squadPos = new Map<number, string>();
     if (ev.squad) {
-      for (const s of ev.squad.starters) {
-        const mem = s.memberId != null ? memberById2.get(s.memberId) : undefined;
-        if (s.memberId != null && mem) {
-          squadPos.set(s.memberId, slotPositionFor(s.slotId, mem));
+      for (const qs of ev.squad.quarters) {
+        for (const s of qs.starters) {
+          if (s.memberId == null || squadPos.has(s.memberId)) continue;
+          const mem = memberById2.get(s.memberId);
+          if (mem) squadPos.set(s.memberId, slotPositionFor(s.slotId, mem));
         }
       }
     }
@@ -153,22 +155,27 @@ export default function EventDetailPage({
     load();
   };
 
-  const assignSlot = async (slotId: string, memberIdRaw: string) => {
+  const assignSlot = async (
+    quarterIdx: number,
+    slotId: string,
+    memberIdRaw: string
+  ) => {
     if (!event.squad) return;
     const newId = memberIdRaw ? Number(memberIdRaw) : null;
-    const squad: SquadData = {
-      ...event.squad,
-      starters: event.squad.starters.map((s) => {
+    const quarters = event.squad.quarters.map((q, qi) => {
+      if (qi !== quarterIdx) return q;
+      const starters = q.starters.map((s) => {
         if (s.slotId === slotId) return { ...s, memberId: newId };
         // 같은 선수가 두 자리에 서지 않게 기존 자리는 비운다
         if (newId != null && s.memberId === newId) return { ...s, memberId: null };
         return s;
-      }),
-    };
-    const starterIds = new Set(
-      squad.starters.map((s) => s.memberId).filter((v): v is number => v != null)
-    );
-    squad.bench = attendIds.filter((mid) => !starterIds.has(mid));
+      });
+      const starterIds = new Set(
+        starters.map((s) => s.memberId).filter((v): v is number => v != null)
+      );
+      return { starters, bench: attendIds.filter((mid) => !starterIds.has(mid)) };
+    });
+    const squad: SquadData = { ...event.squad, quarters };
     await fetch(`/api/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -391,18 +398,35 @@ export default function EventDetailPage({
             </button>
           </div>
           <p className="mb-3 text-xs text-zinc-400">
-            경기 3일 전이 되면 참석 투표 기준으로 자동 생성돼요. 포지션은 각자
-            멤버 탭의 1·2순위 선호를 따라요.
+            경기 3일 전이 되면 참석 투표 기준으로 쿼터별(1~4쿼터) 스쿼드가
+            자동 생성돼요. 포지션은 각자 멤버 탭의 1·2순위 선호를, 출전
+            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요.
           </p>
 
           {event.squad ? (
             <>
+              <div className="mb-3 grid grid-cols-4 gap-1.5">
+                {event.squad.quarters.map((_, qi) => (
+                  <button
+                    key={qi}
+                    onClick={() => setActiveQuarter(qi)}
+                    className={`rounded-xl py-2 text-sm font-semibold ${
+                      activeQuarter === qi
+                        ? "bg-emerald-700 text-white"
+                        : "bg-zinc-100 text-zinc-600"
+                    }`}
+                  >
+                    {qi + 1}쿼터
+                  </button>
+                ))}
+              </div>
+
               <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl bg-emerald-700" style={{ aspectRatio: "3 / 4" }}>
                 <div className="absolute inset-3 rounded-xl border-2 border-emerald-300/50" />
                 <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-300/50" />
                 <div className="absolute left-3 right-3 top-1/2 border-t-2 border-emerald-300/50" />
                 {FORMATION_SLOTS.map((slot) => {
-                  const asg = event.squad!.starters.find(
+                  const asg = event.squad!.quarters[activeQuarter].starters.find(
                     (s) => s.slotId === slot.id
                   );
                   return (
@@ -428,10 +452,10 @@ export default function EventDetailPage({
                 })}
               </div>
 
-              {event.squad.bench.length > 0 && (
+              {event.squad.quarters[activeQuarter].bench.length > 0 && (
                 <p className="mt-3 text-sm">
                   <span className="font-semibold text-zinc-500">교체 대기:</span>{" "}
-                  {event.squad.bench
+                  {event.squad.quarters[activeQuarter].bench
                     .map((mid) => {
                       const m = memberById.get(mid);
                       return m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : "?";
@@ -442,11 +466,11 @@ export default function EventDetailPage({
 
               <details className="mt-3">
                 <summary className="cursor-pointer text-sm font-semibold text-emerald-700">
-                  수동으로 조정하기
+                  {activeQuarter + 1}쿼터 수동으로 조정하기
                 </summary>
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {FORMATION_SLOTS.map((slot) => {
-                    const asg = event.squad!.starters.find(
+                    const asg = event.squad!.quarters[activeQuarter].starters.find(
                       (s) => s.slotId === slot.id
                     );
                     return (
@@ -457,7 +481,9 @@ export default function EventDetailPage({
                         <select
                           className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                           value={asg?.memberId ?? ""}
-                          onChange={(e) => assignSlot(slot.id, e.target.value)}
+                          onChange={(e) =>
+                            assignSlot(activeQuarter, slot.id, e.target.value)
+                          }
                         >
                           <option value="">(비움)</option>
                           {members

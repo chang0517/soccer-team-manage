@@ -1,4 +1,6 @@
-import type { Member, PosGroup, SquadData } from "./types";
+import type { Member, PosGroup, QuarterSquad, SquadData } from "./types";
+
+export const QUARTER_COUNT = 4;
 
 export interface SlotDef {
   id: string;
@@ -41,19 +43,25 @@ export function slotPositionFor(slotId: string, member: Member): PosGroup | "" {
 }
 
 /**
- * 참석자를 포지션 선호도에 따라 자동 배치한다.
+ * 참석자를 포지션 선호도에 따라 쿼터 하나의 스쿼드를 채운다.
  * 1차: 1순위 포지션이 해당 슬롯에 맞는 사람으로 채우고
  * 2차: 남은 슬롯을 2순위 희망자로, 3차: 남은 참석자 아무나로 채운다.
- * 남는 인원은 벤치(교체 명단).
+ * 같은 조건이면 이번 경기에서 지금까지 덜 뛴 사람을 우선한다(로테이션).
  */
-export function generateSquad(attendees: Member[]): SquadData {
+function fillQuarter(
+  attendees: Member[],
+  playCount: Map<number, number>
+): QuarterSquad {
   const assigned = new Map<string, number>();
   const used = new Set<number>();
 
   const fill = (matches: (m: Member, slot: SlotDef) => boolean) => {
     for (const slot of FORMATION_SLOTS) {
       if (assigned.has(slot.id)) continue;
-      const pick = attendees.find((m) => !used.has(m.id) && matches(m, slot));
+      const candidates = attendees
+        .filter((m) => !used.has(m.id) && matches(m, slot))
+        .sort((a, b) => (playCount.get(a.id) ?? 0) - (playCount.get(b.id) ?? 0));
+      const pick = candidates[0];
       if (pick) {
         assigned.set(slot.id, pick.id);
         used.add(pick.id);
@@ -65,12 +73,26 @@ export function generateSquad(attendees: Member[]): SquadData {
   fill((m, slot) => slot.accepts.includes(m.pos2));
   fill(() => true);
 
+  for (const id of used) playCount.set(id, (playCount.get(id) ?? 0) + 1);
+
   return {
     starters: FORMATION_SLOTS.map((s) => ({
       slotId: s.id,
       memberId: assigned.get(s.id) ?? null,
     })),
     bench: attendees.filter((m) => !used.has(m.id)).map((m) => m.id),
-    generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * 참석자를 포지션 선호도 기반으로 4쿼터 각각 독립된 스쿼드로 배치한다.
+ * 쿼터가 진행될수록 아직 덜 뛴 참석자를 우선 배치해 출전 기회를 고르게 나눈다.
+ */
+export function generateSquad(attendees: Member[]): SquadData {
+  const playCount = new Map<number, number>(attendees.map((m) => [m.id, 0]));
+  const quarters: QuarterSquad[] = [];
+  for (let q = 0; q < QUARTER_COUNT; q++) {
+    quarters.push(fillQuarter(attendees, playCount));
+  }
+  return { quarters, generatedAt: new Date().toISOString() };
 }
