@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import AiRecordImport from "@/components/AiRecordImport";
 import VoteButtons from "@/components/VoteButtons";
 import { useMyId } from "@/components/useMyId";
 import { formatDate, dDayLabel } from "@/lib/format";
@@ -11,6 +12,7 @@ import { POS_GROUPS, POS_SHORT } from "@/lib/types";
 import type {
   EventItem,
   Member,
+  PosGroup,
   RecordRow,
   SquadData,
   VoteRow,
@@ -40,6 +42,13 @@ export default function EventDetailPage({
   const [conceded, setConceded] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState("");
   const [myId, setMyId] = useMyId();
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestForm, setGuestForm] = useState<{
+    name: string;
+    pos1: PosGroup;
+    pos2: PosGroup;
+  }>({ name: "", pos1: "CB", pos2: "WB" });
+  const [addingGuest, setAddingGuest] = useState(false);
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m])),
@@ -113,6 +122,32 @@ export default function EventDetailPage({
     load();
   };
 
+  const addGuest = async () => {
+    if (!guestForm.name.trim()) return;
+    setAddingGuest(true);
+    const res = await fetch("/api/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: guestForm.name.trim(),
+        backNo: null,
+        pos1: guestForm.pos1,
+        pos2: guestForm.pos2,
+        isGuest: true,
+      }),
+    });
+    const guest = await res.json();
+    await fetch(`/api/events/${id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: guest.id, status: "attend" }),
+    });
+    setAddingGuest(false);
+    setGuestForm({ name: "", pos1: "CB", pos2: "WB" });
+    setShowGuestForm(false);
+    load();
+  };
+
   const regenerate = async () => {
     await fetch(`/api/events/${id}/squad`, { method: "POST" });
     load();
@@ -168,13 +203,33 @@ export default function EventDetailPage({
       ds.map((d) => (d.memberId === memberId ? { ...d, ...patch } : d))
     );
 
+  const applyAiResults = (
+    results: { memberId: number; goals: number; assists: number }[]
+  ) => {
+    setDrafts((ds) =>
+      ds.map((d) => {
+        const r = results.find((x) => x.memberId === d.memberId);
+        if (!r) return d;
+        return {
+          ...d,
+          played: true,
+          goals: d.goals + r.goals,
+          assists: d.assists + r.assists,
+        };
+      })
+    );
+  };
+
   const nameOf = (mid: number | null) =>
     mid != null ? (memberById.get(mid)?.name ?? "?") : "미정";
 
   const voterList = (status: VoteStatus) =>
     votes
       .filter((v) => v.status === status)
-      .map((v) => memberById.get(v.memberId)?.name)
+      .map((v) => {
+        const m = memberById.get(v.memberId);
+        return m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : null;
+      })
       .filter(Boolean)
       .join(", ");
 
@@ -253,6 +308,72 @@ export default function EventDetailPage({
             </p>
           )}
         </div>
+
+        <div className="mt-4 border-t border-zinc-100 pt-3">
+          <button
+            onClick={() => setShowGuestForm((v) => !v)}
+            className="text-sm font-semibold text-emerald-700"
+          >
+            {showGuestForm ? "용병 추가 닫기" : "+ 용병 추가"}
+          </button>
+          {showGuestForm && (
+            <div className="mt-3 space-y-2 rounded-xl bg-zinc-50 p-3">
+              <input
+                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+                placeholder="용병 이름"
+                value={guestForm.name}
+                onChange={(e) =>
+                  setGuestForm({ ...guestForm, name: e.target.value })
+                }
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  className="rounded-xl border border-zinc-300 bg-white px-2 py-2 text-sm"
+                  value={guestForm.pos1}
+                  onChange={(e) =>
+                    setGuestForm({
+                      ...guestForm,
+                      pos1: e.target.value as PosGroup,
+                    })
+                  }
+                >
+                  {POS_GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      1순위 {g}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="rounded-xl border border-zinc-300 bg-white px-2 py-2 text-sm"
+                  value={guestForm.pos2}
+                  onChange={(e) =>
+                    setGuestForm({
+                      ...guestForm,
+                      pos2: e.target.value as PosGroup,
+                    })
+                  }
+                >
+                  {POS_GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      2순위 {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={addGuest}
+                disabled={addingGuest || !guestForm.name.trim()}
+                className="w-full rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {addingGuest ? "추가 중…" : "용병 추가 + 이 경기 참석 등록"}
+              </button>
+              <p className="text-xs text-zinc-400">
+                이 경기에만 쓰는 임시 참가자예요. 멤버 탭에도 &ldquo;용병&rdquo;
+                표시로 남아요.
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
       {event.type === "match" && (
@@ -307,7 +428,12 @@ export default function EventDetailPage({
               {event.squad.bench.length > 0 && (
                 <p className="mt-3 text-sm">
                   <span className="font-semibold text-zinc-500">교체 대기:</span>{" "}
-                  {event.squad.bench.map((mid) => nameOf(mid)).join(", ")}
+                  {event.squad.bench
+                    .map((mid) => {
+                      const m = memberById.get(mid);
+                      return m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : "?";
+                    })
+                    .join(", ")}
                 </p>
               )}
 
@@ -339,7 +465,7 @@ export default function EventDetailPage({
                             )
                             .map((m) => (
                               <option key={m.id} value={m.id}>
-                                {m.name} ({m.pos1}/{m.pos2})
+                                {m.name} ({m.pos1}/{m.pos2}){m.isGuest ? " · 용병" : ""}
                               </option>
                             ))}
                         </select>
@@ -384,6 +510,8 @@ export default function EventDetailPage({
               </span>
             )}
           </div>
+
+          <AiRecordImport members={members} onApply={applyAiResults} />
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

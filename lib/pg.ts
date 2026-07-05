@@ -37,7 +37,8 @@ async function init() {
       name TEXT NOT NULL,
       back_no INTEGER,
       pos1 TEXT NOT NULL DEFAULT 'CB',
-      pos2 TEXT NOT NULL DEFAULT 'WB'
+      pos2 TEXT NOT NULL DEFAULT 'WB',
+      is_guest BOOLEAN NOT NULL DEFAULT false
     );
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
@@ -68,11 +69,14 @@ async function init() {
       PRIMARY KEY (event_id, member_id)
     );
   `);
+  await pool.query(
+    "ALTER TABLE members ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false"
+  );
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
       await pool.query(
-        "INSERT INTO members (name, back_no, pos1, pos2) VALUES ($1, NULL, $2, $3)",
+        "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES ($1, NULL, $2, $3, false)",
         [name, p1, p2]
       );
     }
@@ -91,10 +95,18 @@ type MemberDbRow = {
   back_no: number | null;
   pos1: PosGroup;
   pos2: PosGroup;
+  is_guest: boolean;
 };
 
 function toMember(r: MemberDbRow): Member {
-  return { id: r.id, name: r.name, backNo: r.back_no, pos1: r.pos1, pos2: r.pos2 };
+  return {
+    id: r.id,
+    name: r.name,
+    backNo: r.back_no,
+    pos1: r.pos1,
+    pos2: r.pos2,
+    isGuest: !!r.is_guest,
+  };
 }
 
 export async function listMembers(): Promise<Member[]> {
@@ -106,8 +118,8 @@ export async function listMembers(): Promise<Member[]> {
 export async function createMember(m: Omit<Member, "id">): Promise<Member> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO members (name, back_no, pos1, pos2) VALUES ($1, $2, $3, $4) RETURNING id",
-    [m.name, m.backNo, m.pos1, m.pos2]
+    "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    [m.name, m.backNo, m.pos1, m.pos2, !!m.isGuest]
   );
   return { id: rows[0].id, ...m };
 }
@@ -115,8 +127,8 @@ export async function createMember(m: Omit<Member, "id">): Promise<Member> {
 export async function updateMember(id: number, m: Omit<Member, "id">) {
   const pool = await ready();
   await pool.query(
-    "UPDATE members SET name=$1, back_no=$2, pos1=$3, pos2=$4 WHERE id=$5",
-    [m.name, m.backNo, m.pos1, m.pos2, id]
+    "UPDATE members SET name=$1, back_no=$2, pos1=$3, pos2=$4, is_guest=$5 WHERE id=$6",
+    [m.name, m.backNo, m.pos1, m.pos2, !!m.isGuest, id]
   );
 }
 

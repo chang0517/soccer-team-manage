@@ -9,9 +9,10 @@ interface Draft {
   backNo: string;
   pos1: PosGroup;
   pos2: PosGroup;
+  isGuest: boolean;
 }
 
-const EMPTY: Draft = { name: "", backNo: "", pos1: "CB", pos2: "WB" };
+const EMPTY: Draft = { name: "", backNo: "", pos1: "CB", pos2: "WB", isGuest: false };
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -35,6 +36,7 @@ export default function MembersPage() {
         backNo: draft.backNo === "" ? null : Number(draft.backNo),
         pos1: draft.pos1,
         pos2: draft.pos2,
+        isGuest: draft.isGuest,
       }),
     });
     setDraft(EMPTY);
@@ -50,6 +52,7 @@ export default function MembersPage() {
         backNo: editDraft.backNo === "" ? null : Number(editDraft.backNo),
         pos1: editDraft.pos1,
         pos2: editDraft.pos2,
+        isGuest: editDraft.isGuest,
       }),
     });
     setEditingId(null);
@@ -117,6 +120,15 @@ export default function MembersPage() {
             {posSelect(draft.pos2, (v) => setDraft({ ...draft, pos2: v }))}
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-zinc-600">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-emerald-700"
+            checked={draft.isGuest}
+            onChange={(e) => setDraft({ ...draft, isGuest: e.target.checked })}
+          />
+          용병 (임시 참가자)
+        </label>
         <button
           onClick={add}
           disabled={!draft.name.trim()}
@@ -155,6 +167,17 @@ export default function MembersPage() {
                     setEditDraft({ ...editDraft, pos2: v })
                   )}
                 </div>
+                <label className="flex items-center gap-2 text-sm text-zinc-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-emerald-700"
+                    checked={editDraft.isGuest}
+                    onChange={(e) =>
+                      setEditDraft({ ...editDraft, isGuest: e.target.checked })
+                    }
+                  />
+                  용병 (임시 참가자)
+                </label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => saveEdit(m.id)}
@@ -176,7 +199,14 @@ export default function MembersPage() {
                   {m.backNo ?? "–"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{m.name}</p>
+                  <p className="font-semibold">
+                    {m.name}
+                    {m.isGuest && (
+                      <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                        용병
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-zinc-500">
                     1순위 {POS_LABELS[m.pos1]} · 2순위 {POS_LABELS[m.pos2]}
                   </p>
@@ -189,6 +219,7 @@ export default function MembersPage() {
                       backNo: m.backNo != null ? String(m.backNo) : "",
                       pos1: m.pos1,
                       pos2: m.pos2,
+                      isGuest: m.isGuest,
                     });
                   }}
                   className="text-xs text-emerald-700 underline"

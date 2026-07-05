@@ -11,6 +11,7 @@ export async function PATCH(
     backNo: body.backNo ?? null,
     pos1: body.pos1,
     pos2: body.pos2,
+    isGuest: !!body.isGuest,
   });
   return Response.json({ ok: true });
 }

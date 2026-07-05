@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     backNo: body.backNo ?? null,
     pos1: body.pos1 ?? "CB",
     pos2: body.pos2 ?? "WB",
+    isGuest: !!body.isGuest,
   });
   return Response.json(member, { status: 201 });
 }

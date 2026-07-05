@@ -25,7 +25,8 @@ function createDb(): Database.Database {
       name TEXT NOT NULL,
       back_no INTEGER,
       pos1 TEXT NOT NULL DEFAULT 'CB',
-      pos2 TEXT NOT NULL DEFAULT 'WB'
+      pos2 TEXT NOT NULL DEFAULT 'WB',
+      is_guest INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,6 +57,10 @@ function createDb(): Database.Database {
       PRIMARY KEY (event_id, member_id)
     );
   `);
+  const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
+  if (!memberCols.some((c) => c.name === "is_guest")) {
+    db.exec("ALTER TABLE members ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0");
+  }
   seedIfEmpty(db);
   return db;
 }
@@ -72,7 +77,7 @@ function seedIfEmpty(db: Database.Database) {
   if (count.c > 0) return;
 
   const insM = db.prepare(
-    "INSERT INTO members (name, back_no, pos1, pos2) VALUES (?, NULL, ?, ?)"
+    "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES (?, NULL, ?, ?, 0)"
   );
   for (const [name, p1, p2] of ROSTER) insM.run(name, p1, p2);
 }
@@ -84,10 +89,18 @@ type MemberDbRow = {
   back_no: number | null;
   pos1: PosGroup;
   pos2: PosGroup;
+  is_guest: number;
 };
 
 function toMember(r: MemberDbRow): Member {
-  return { id: r.id, name: r.name, backNo: r.back_no, pos1: r.pos1, pos2: r.pos2 };
+  return {
+    id: r.id,
+    name: r.name,
+    backNo: r.back_no,
+    pos1: r.pos1,
+    pos2: r.pos2,
+    isGuest: !!r.is_guest,
+  };
 }
 
 export function listMembers(): Member[] {
@@ -99,15 +112,19 @@ export function listMembers(): Member[] {
 
 export function createMember(m: Omit<Member, "id">): Member {
   const r = getDb()
-    .prepare("INSERT INTO members (name, back_no, pos1, pos2) VALUES (?, ?, ?, ?)")
-    .run(m.name, m.backNo, m.pos1, m.pos2);
+    .prepare(
+      "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(m.name, m.backNo, m.pos1, m.pos2, m.isGuest ? 1 : 0);
   return { id: Number(r.lastInsertRowid), ...m };
 }
 
 export function updateMember(id: number, m: Omit<Member, "id">) {
   getDb()
-    .prepare("UPDATE members SET name=?, back_no=?, pos1=?, pos2=? WHERE id=?")
-    .run(m.name, m.backNo, m.pos1, m.pos2, id);
+    .prepare(
+      "UPDATE members SET name=?, back_no=?, pos1=?, pos2=?, is_guest=? WHERE id=?"
+    )
+    .run(m.name, m.backNo, m.pos1, m.pos2, m.isGuest ? 1 : 0, id);
 }
 
 export function deleteMember(id: number) {

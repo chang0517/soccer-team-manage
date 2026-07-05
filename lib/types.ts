@@ -28,6 +28,7 @@ export interface Member {
   backNo: number | null;
   pos1: PosGroup;
   pos2: PosGroup;
+  isGuest: boolean;
 }
 
 export type VoteStatus = "attend" | "maybe" | "absent";
