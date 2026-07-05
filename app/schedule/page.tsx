@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import TimePicker from "@/components/TimePicker";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
 import type { EventItem } from "@/lib/types";
 
@@ -144,13 +145,11 @@ export default function SchedulePage() {
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
               />
             </div>
-            <div>
+            <div className="col-span-2">
               <label className="text-xs font-semibold text-zinc-500">시간</label>
-              <input
-                type="time"
-                className={input}
+              <TimePicker
                 value={form.time}
-                onChange={(e) => setForm({ ...form, time: e.target.value })}
+                onChange={(time) => setForm({ ...form, time })}
               />
             </div>
             <div className="col-span-2">
