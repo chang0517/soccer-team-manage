@@ -204,7 +204,8 @@ export default function EventDetailPage({
     );
 
   const applyAiResults = (
-    results: { memberId: number; goals: number; assists: number }[]
+    results: { memberId: number; goals: number; assists: number }[],
+    score: { scored: number | null; conceded: number | null } | null
   ) => {
     setDrafts((ds) =>
       ds.map((d) => {
@@ -218,6 +219,8 @@ export default function EventDetailPage({
         };
       })
     );
+    if (score?.scored != null) setScored(String(score.scored));
+    if (score?.conceded != null) setConceded(String(score.conceded));
   };
 
   const nameOf = (mid: number | null) =>
@@ -506,7 +509,7 @@ export default function EventDetailPage({
             />
             {conceded === "0" && (
               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
-                클린시트 → GK·수비 1점, 수미 0.5점
+                클린시트 → GK·센터백·윙백 1점, 수미 0.5점
               </span>
             )}
           </div>

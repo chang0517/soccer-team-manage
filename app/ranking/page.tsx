@@ -14,8 +14,8 @@ export default function RankingPage() {
     <div className="space-y-4">
       <h1 className="text-lg font-bold">시즌 랭킹</h1>
       <p className="rounded-xl bg-zinc-100 px-3 py-2 text-xs text-zinc-500">
-        골 1점 · 어시스트 1점 · 클린시트 시 GK/수비수 1점, 수비형 미드필더
-        0.5점
+        골 1점 · 어시스트 1점 · 클린시트 시 GK·센터백·윙백 1점, 수비형
+        미드필더 0.5점
       </p>
       <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
         <table className="w-full text-sm">
