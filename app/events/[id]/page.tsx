@@ -7,7 +7,12 @@ import AiRecordImport from "@/components/AiRecordImport";
 import VoteButtons from "@/components/VoteButtons";
 import { useMyId } from "@/components/useMyId";
 import { formatDate, dDayLabel } from "@/lib/format";
-import { FORMATION_SLOTS, slotDisplayLabel, slotPositionFor } from "@/lib/squad";
+import {
+  FORMATION_SLOTS,
+  SLOT_CATEGORY_COLORS,
+  slotDisplayLabel,
+  slotPositionFor,
+} from "@/lib/squad";
 import { POS_GROUPS } from "@/lib/types";
 import type {
   EventItem,
@@ -127,6 +132,27 @@ export default function EventDetailPage({
       .sort((a, b) => b.count - a.count);
   })();
   const myMvpVote = mvpVotes.find((v) => v.voterId === myId)?.voteeId ?? null;
+
+  const quarterCounts = (() => {
+    if (!event.squad) return [] as { memberId: number; count: number }[];
+    const counts = new Map<number, number>();
+    for (const q of event.squad.quarters) {
+      for (const s of q.starters) {
+        if (s.memberId == null) continue;
+        counts.set(s.memberId, (counts.get(s.memberId) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([memberId, count]) => ({ memberId, count }))
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          (memberById.get(a.memberId)?.name ?? "").localeCompare(
+            memberById.get(b.memberId)?.name ?? "",
+            "ko"
+          )
+      );
+  })();
 
   const vote = async (status: VoteStatus) => {
     if (!myId) return;
@@ -460,11 +486,7 @@ export default function EventDetailPage({
                       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                     >
                       <div
-                        className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold ${
-                          slot.accepts.includes("GK")
-                            ? "bg-amber-400 text-amber-950"
-                            : "bg-white text-emerald-900"
-                        }`}
+                        className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[10px] font-bold ${SLOT_CATEGORY_COLORS[slot.category].bg} ${SLOT_CATEGORY_COLORS[slot.category].text}`}
                       >
                         {slot.label}
                       </div>
@@ -474,6 +496,18 @@ export default function EventDetailPage({
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="mt-2 flex justify-center gap-3 text-[11px] text-zinc-500">
+                <span className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />수비
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-violet-300" />미드필더
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />공격
+                </span>
               </div>
 
               {event.squad.quarters[activeQuarter].bench.length > 0 && (
@@ -486,6 +520,30 @@ export default function EventDetailPage({
                     })
                     .join(", ")}
                 </p>
+              )}
+
+              {quarterCounts.length > 0 && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-emerald-700">
+                    인당 출전 쿼터 수 (전체 {event.squad.quarters.length}쿼터 중)
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3">
+                    {quarterCounts.map(({ memberId, count }) => {
+                      const m = memberById.get(memberId);
+                      return (
+                        <div key={memberId} className="flex justify-between">
+                          <span>
+                            {m?.name ?? "?"}
+                            {m?.isGuest ? " · 용병" : ""}
+                          </span>
+                          <span className="font-semibold text-zinc-500">
+                            {count}쿼터
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
               )}
 
               <details className="mt-3">

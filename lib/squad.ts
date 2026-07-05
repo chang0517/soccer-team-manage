@@ -3,10 +3,13 @@ import { POS_SHORT } from "./types";
 
 export const QUARTER_COUNT = 4;
 
+export type SlotCategory = "GK" | "DF" | "MF" | "FW";
+
 export interface SlotDef {
   id: string;
   accepts: PosGroup[];
   label: string;
+  category: SlotCategory;
   x: number;
   y: number;
 }
@@ -15,18 +18,28 @@ export interface SlotDef {
 // 수미 한 명이 뒤에서 지키고 그 앞 두 명의 CM이 박스투박스, 좌우 두 명은
 // 공미·윙어 겸업으로 폭과 침투를 담당, 최전방엔 스트라이커 한 명만 둔다.
 export const FORMATION_SLOTS: SlotDef[] = [
-  { id: "GK", accepts: ["GK"], label: "GK", x: 50, y: 91 },
-  { id: "LB", accepts: ["WB"], label: "LB", x: 13, y: 72 },
-  { id: "LCB", accepts: ["CB"], label: "CB", x: 37, y: 77 },
-  { id: "RCB", accepts: ["CB"], label: "CB", x: 63, y: 77 },
-  { id: "RB", accepts: ["WB"], label: "RB", x: 87, y: 72 },
-  { id: "DM", accepts: ["DM"], label: "DM", x: 50, y: 60 },
-  { id: "LCM", accepts: ["DM", "AM"], label: "CM", x: 30, y: 46 },
-  { id: "RCM", accepts: ["DM", "AM"], label: "CM", x: 70, y: 46 },
-  { id: "LW", accepts: ["WG", "AM"], label: "LW", x: 16, y: 26 },
-  { id: "RW", accepts: ["WG", "AM"], label: "RW", x: 84, y: 26 },
-  { id: "ST", accepts: ["ST"], label: "ST", x: 50, y: 13 },
+  { id: "GK", accepts: ["GK"], label: "GK", category: "GK", x: 50, y: 91 },
+  { id: "LB", accepts: ["WB"], label: "LB", category: "DF", x: 13, y: 72 },
+  { id: "LCB", accepts: ["CB"], label: "CB", category: "DF", x: 37, y: 77 },
+  { id: "RCB", accepts: ["CB"], label: "CB", category: "DF", x: 63, y: 77 },
+  { id: "RB", accepts: ["WB"], label: "RB", category: "DF", x: 87, y: 72 },
+  { id: "DM", accepts: ["DM"], label: "DM", category: "MF", x: 50, y: 60 },
+  { id: "LCM", accepts: ["DM", "AM"], label: "CM", category: "MF", x: 30, y: 46 },
+  { id: "RCM", accepts: ["DM", "AM"], label: "CM", category: "MF", x: 70, y: 46 },
+  { id: "LW", accepts: ["WG", "AM"], label: "LW", category: "FW", x: 16, y: 26 },
+  { id: "RW", accepts: ["WG", "AM"], label: "RW", category: "FW", x: 84, y: 26 },
+  { id: "ST", accepts: ["ST"], label: "ST", category: "FW", x: 50, y: 13 },
 ];
+
+export const SLOT_CATEGORY_COLORS: Record<
+  SlotCategory,
+  { bg: string; text: string }
+> = {
+  GK: { bg: "bg-amber-400", text: "text-amber-950" },
+  DF: { bg: "bg-sky-400", text: "text-sky-950" },
+  MF: { bg: "bg-violet-300", text: "text-violet-950" },
+  FW: { bg: "bg-rose-400", text: "text-rose-950" },
+};
 
 export function slotAccepts(slotId: string): PosGroup[] {
   return FORMATION_SLOTS.find((s) => s.id === slotId)?.accepts ?? [];
