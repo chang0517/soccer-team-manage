@@ -8,7 +8,9 @@ import {
   updateEvent,
 } from "@/lib/db";
 import { daysUntil } from "@/lib/format";
-import { generateSquad } from "@/lib/squad";
+import { FORMATION_SLOTS, generateSquad } from "@/lib/squad";
+
+const CURRENT_SLOT_IDS = new Set(FORMATION_SLOTS.map((s) => s.id));
 
 export async function GET(
   _request: Request,
@@ -21,6 +23,17 @@ export async function GET(
   // 예전 버전(쿼터 구분 없는 단일 스쿼드) 데이터는 새 구조와 맞지 않으니
   // 안전하게 비워서 "아직 스쿼드 없음" 상태로 되돌린다.
   if (event.squad && !Array.isArray(event.squad.quarters)) {
+    await updateEvent(event.id, { squad: null });
+    event = (await getEvent(event.id))!;
+  }
+
+  // 포메이션이 바뀌어 슬롯 구성이 달라진 예전 스쿼드도 마찬가지로 비운다.
+  if (
+    event.squad &&
+    event.squad.quarters.some((q) =>
+      q.starters.some((s) => !CURRENT_SLOT_IDS.has(s.slotId))
+    )
+  ) {
     await updateEvent(event.id, { squad: null });
     event = (await getEvent(event.id))!;
   }
