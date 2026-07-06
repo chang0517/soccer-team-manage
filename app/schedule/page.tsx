@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import MonthCalendar from "@/components/MonthCalendar";
 import TimePicker from "@/components/TimePicker";
+import { useSession } from "@/components/useSession";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
 import type { EventItem } from "@/lib/types";
 
@@ -17,6 +18,8 @@ const EMPTY_FORM = {
 };
 
 export default function SchedulePage() {
+  const { user } = useSession();
+  const isAdmin = user?.role === "admin";
   const [events, setEvents] = useState<EventItem[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -99,12 +102,14 @@ export default function SchedulePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">일정</h1>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
-        >
-          {showForm ? "닫기" : "+ 일정 추가"}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+          >
+            {showForm ? "닫기" : "+ 일정 추가"}
+          </button>
+        )}
       </div>
 
       {showForm && (

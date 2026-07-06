@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AiRecordImport from "@/components/AiRecordImport";
 import VoteButtons from "@/components/VoteButtons";
-import { useMyId } from "@/components/useMyId";
-import { formatDate, dDayLabel } from "@/lib/format";
+import { useSession } from "@/components/useSession";
+import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
+import { isVotingClosed } from "@/lib/rules";
 import {
   FORMATION_SLOTS,
   SLOT_CATEGORY_COLORS,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/squad";
 import { POS_GROUPS } from "@/lib/types";
 import type {
+  CommentRow,
   EventItem,
   Member,
   MvpVoteRow,
@@ -47,7 +49,8 @@ export default function EventDetailPage({
   const [scored, setScored] = useState<string>("");
   const [conceded, setConceded] = useState<string>("");
   const [savedMsg, setSavedMsg] = useState("");
-  const [myId, setMyId] = useMyId();
+  const { user } = useSession();
+  const myId = user?.memberId ?? null;
   const [activeQuarter, setActiveQuarter] = useState(0);
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState<{
@@ -58,6 +61,12 @@ export default function EventDetailPage({
   const [addingGuest, setAddingGuest] = useState(false);
   const [mvpVotes, setMvpVotes] = useState<MvpVoteRow[]>([]);
   const [mvpPick, setMvpPick] = useState("");
+  const [comments, setComments] = useState<CommentRow[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [adminAddPick, setAdminAddPick] = useState("");
+  const [voteError, setVoteError] = useState("");
+  const isAdmin = user?.role === "admin";
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m])),
@@ -65,9 +74,10 @@ export default function EventDetailPage({
   );
 
   const load = useCallback(async () => {
-    const [detail, mems] = await Promise.all([
+    const [detail, mems, comms] = await Promise.all([
       fetch(`/api/events/${id}`).then((r) => r.json()),
       fetch("/api/members").then((r) => r.json()),
+      fetch(`/api/events/${id}/comments`).then((r) => r.json()),
     ]);
     if (detail.error) return;
     const ev: EventItem = detail.event;
@@ -75,6 +85,7 @@ export default function EventDetailPage({
     setEvent(ev);
     setVotes(detail.votes);
     setMvpVotes(detail.mvpVotes ?? []);
+    setComments(Array.isArray(comms) ? comms : []);
     setMembers(mems);
     setScored(ev.scored != null ? String(ev.scored) : "");
     setConceded(ev.conceded != null ? String(ev.conceded) : "");
@@ -122,6 +133,7 @@ export default function EventDetailPage({
   const nonVoters = members.filter(
     (m) => !votes.some((v) => v.memberId === m.id)
   );
+  const voteClosed = isVotingClosed(daysUntil(event.date), counts.attend);
 
   const mvpTally = (() => {
     const counts = new Map<number, number>();
@@ -156,11 +168,43 @@ export default function EventDetailPage({
 
   const vote = async (status: VoteStatus) => {
     if (!myId) return;
-    await fetch(`/api/events/${id}/vote`, {
+    const res = await fetch(`/api/events/${id}/vote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ memberId: myId, status }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setVoteError(data?.error || "투표에 실패했어요.");
+      return;
+    }
+    setVoteError("");
+    load();
+  };
+
+  const postComment = async () => {
+    if (!newComment.trim()) return;
+    setCommentSaving(true);
+    const res = await fetch(`/api/events/${id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: newComment.trim() }),
+    });
+    setCommentSaving(false);
+    if (res.ok) {
+      setNewComment("");
+      load();
+    }
+  };
+
+  const adminAddAttend = async () => {
+    if (!adminAddPick) return;
+    await fetch(`/api/events/${id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: Number(adminAddPick), status: "attend" }),
+    });
+    setAdminAddPick("");
     load();
   };
 
@@ -303,12 +347,14 @@ export default function EventDetailPage({
           <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
             {dDayLabel(event.date)}
           </span>
-          <button
-            onClick={removeEvent}
-            className="text-xs text-red-500 underline"
-          >
-            일정 삭제
-          </button>
+          {user?.role === "admin" && (
+            <button
+              onClick={removeEvent}
+              className="text-xs text-red-500 underline"
+            >
+              일정 삭제
+            </button>
+          )}
         </div>
         <h1 className="mt-2 text-lg font-bold">
           {event.title}
@@ -334,19 +380,29 @@ export default function EventDetailPage({
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-4">
         <h2 className="mb-3 text-base font-bold">참석 투표</h2>
+        {voteClosed && (
+          <p className="mb-3 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-600">
+            투표가 마감됐어요 ({counts.attend >= 20 ? "참석 20명 도달" : "경기 3일 전 마감"}
+            ). 참석하고 싶으면 아래 댓글로 남겨 주세요.
+          </p>
+        )}
         <VoteButtons
           myStatus={myStatus}
           counts={counts}
-          disabled={!myId}
+          disabled={!myId || (voteClosed && !isAdmin)}
           onVote={vote}
         />
+        {voteError && <p className="mt-2 text-xs text-red-500">{voteError}</p>}
         {!myId && (
           <p className="mt-2 text-xs text-zinc-400">
-            홈 화면에서 내 이름을 먼저 선택해 주세요.
-            {" "}
-            <Link className="text-emerald-700 underline" href="/">
-              홈으로
-            </Link>
+            {user
+              ? "아직 멤버 프로필과 연결되지 않았어요. 운영진에게 요청해 주세요."
+              : "투표하려면 먼저 로그인해 주세요."}{" "}
+            {!user && (
+              <Link className="text-emerald-700 underline" href="/login">
+                로그인
+              </Link>
+            )}
           </p>
         )}
         <div className="mt-4 space-y-2 text-sm">
@@ -366,6 +422,71 @@ export default function EventDetailPage({
             <p className="text-xs text-zinc-400">
               미투표 {nonVoters.length}명: {nonVoters.map((m) => m.name).join(", ")}
             </p>
+          )}
+        </div>
+
+        {isAdmin && (
+          <div className="mt-4 flex items-center gap-2 border-t border-zinc-100 pt-3">
+            <select
+              className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              value={adminAddPick}
+              onChange={(e) => setAdminAddPick(e.target.value)}
+            >
+              <option value="">참석으로 직접 추가할 멤버 선택</option>
+              {members
+                .filter((m) => !attendIds.includes(m.id))
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.isGuest ? " · 용병" : ""}
+                  </option>
+                ))}
+            </select>
+            <button
+              onClick={adminAddAttend}
+              disabled={!adminAddPick}
+              className="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              참석 추가
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4 border-t border-zinc-100 pt-3">
+          <p className="mb-2 text-sm font-semibold text-zinc-500">댓글</p>
+          {comments.length === 0 ? (
+            <p className="mb-2 text-xs text-zinc-400">아직 댓글이 없어요.</p>
+          ) : (
+            <div className="mb-2 space-y-1.5">
+              {comments.map((c) => (
+                <p key={c.id} className="text-sm">
+                  <span className="font-semibold">
+                    {memberById.get(c.memberId)?.name ?? "?"}
+                  </span>
+                  <span className="ml-1.5 text-zinc-600">{c.body}</span>
+                </p>
+              ))}
+            </div>
+          )}
+          {myId ? (
+            <div className="flex items-center gap-2">
+              <input
+                className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                placeholder="참석 의사나 하고 싶은 말을 남겨보세요"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && postComment()}
+              />
+              <button
+                onClick={postComment}
+                disabled={commentSaving || !newComment.trim()}
+                className="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                등록
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400">댓글을 남기려면 로그인해 주세요.</p>
           )}
         </div>
 
@@ -756,7 +877,9 @@ export default function EventDetailPage({
           </div>
           {!myId && (
             <p className="mt-2 text-xs text-zinc-400">
-              홈 화면에서 내 이름을 먼저 선택해 주세요.
+              {user
+                ? "아직 멤버 프로필과 연결되지 않았어요."
+                : "투표하려면 먼저 로그인해 주세요."}
             </p>
           )}
 

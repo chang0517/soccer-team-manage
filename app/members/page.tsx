@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "@/components/useSession";
 import { POS_GROUPS, POS_LABELS } from "@/lib/types";
 import type { Member, PosGroup } from "@/lib/types";
 
@@ -15,6 +16,8 @@ interface Draft {
 const EMPTY: Draft = { name: "", backNo: "", pos1: "CB", pos2: "WB", isGuest: false };
 
 export default function MembersPage() {
+  const { user } = useSession();
+  const isAdmin = user?.role === "admin";
   const [members, setMembers] = useState<Member[]>([]);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -91,6 +94,7 @@ export default function MembersPage() {
         <span className="text-sm text-zinc-500">총 {members.length}명</span>
       </div>
 
+      {isAdmin && (
       <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
         <p className="text-sm font-bold">멤버 추가</p>
         <div className="grid grid-cols-2 gap-2">
@@ -137,6 +141,7 @@ export default function MembersPage() {
           추가
         </button>
       </div>
+      )}
 
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
         {members.map((m) => (
@@ -211,27 +216,31 @@ export default function MembersPage() {
                     1순위 {POS_LABELS[m.pos1]} · 2순위 {POS_LABELS[m.pos2]}
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingId(m.id);
-                    setEditDraft({
-                      name: m.name,
-                      backNo: m.backNo != null ? String(m.backNo) : "",
-                      pos1: m.pos1,
-                      pos2: m.pos2,
-                      isGuest: m.isGuest,
-                    });
-                  }}
-                  className="text-xs text-emerald-700 underline"
-                >
-                  수정
-                </button>
-                <button
-                  onClick={() => remove(m)}
-                  className="text-xs text-red-500 underline"
-                >
-                  삭제
-                </button>
+                {(isAdmin || user?.memberId === m.id) && (
+                  <button
+                    onClick={() => {
+                      setEditingId(m.id);
+                      setEditDraft({
+                        name: m.name,
+                        backNo: m.backNo != null ? String(m.backNo) : "",
+                        pos1: m.pos1,
+                        pos2: m.pos2,
+                        isGuest: m.isGuest,
+                      });
+                    }}
+                    className="text-xs text-emerald-700 underline"
+                  >
+                    수정
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => remove(m)}
+                    className="text-xs text-red-500 underline"
+                  >
+                    삭제
+                  </button>
+                )}
               </div>
             )}
           </div>

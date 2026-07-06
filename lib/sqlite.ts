@@ -3,12 +3,16 @@ import fs from "fs";
 import path from "path";
 import { ROSTER } from "./roster";
 import type {
+  AppUser,
+  CommentRow,
   EventItem,
   Member,
   MvpVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
+  UserRole,
+  UserStatus,
   VoteRow,
   VoteStatus,
 } from "./types";
@@ -62,6 +66,23 @@ function createDb(): Database.Database {
       voter_id INTEGER NOT NULL,
       votee_id INTEGER NOT NULL,
       PRIMARY KEY (event_id, voter_id)
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'player',
+      status TEXT NOT NULL DEFAULT 'pending',
+      member_id INTEGER,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL
     );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
@@ -331,4 +352,135 @@ export function setMvpVote(eventId: number, voterId: number, voteeId: number) {
 export function getAllMvpVotes(): MvpVoteRow[] {
   const rows = getDb().prepare("SELECT * FROM mvp_votes").all() as MvpVoteDbRow[];
   return rows.map(toMvpVote);
+}
+
+// ---------- users ----------
+type UserDbRow = {
+  id: number;
+  username: string;
+  password_hash: string;
+  display_name: string;
+  role: UserRole;
+  status: UserStatus;
+  member_id: number | null;
+  created_at: string;
+};
+
+function toUser(r: UserDbRow): AppUser {
+  return {
+    id: r.id,
+    username: r.username,
+    displayName: r.display_name,
+    role: r.role,
+    status: r.status,
+    memberId: r.member_id,
+    createdAt: r.created_at,
+  };
+}
+
+export function countUsers(): number {
+  const row = getDb().prepare("SELECT COUNT(*) AS c FROM users").get() as {
+    c: number;
+  };
+  return row.c;
+}
+
+export function getUserByUsername(
+  username: string
+): (AppUser & { passwordHash: string }) | null {
+  const r = getDb()
+    .prepare("SELECT * FROM users WHERE username=?")
+    .get(username) as UserDbRow | undefined;
+  return r ? { ...toUser(r), passwordHash: r.password_hash } : null;
+}
+
+export function getUserById(id: number): AppUser | null {
+  const r = getDb().prepare("SELECT * FROM users WHERE id=?").get(id) as
+    | UserDbRow
+    | undefined;
+  return r ? toUser(r) : null;
+}
+
+export function listUsersByStatus(status: UserStatus): AppUser[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM users WHERE status=? ORDER BY created_at")
+    .all(status) as UserDbRow[];
+  return rows.map(toUser);
+}
+
+export function createUser(u: {
+  username: string;
+  passwordHash: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  memberId: number | null;
+}): AppUser {
+  const createdAt = new Date().toISOString();
+  const r = getDb()
+    .prepare(
+      "INSERT INTO users (username, password_hash, display_name, role, status, member_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .run(
+      u.username,
+      u.passwordHash,
+      u.displayName,
+      u.role,
+      u.status,
+      u.memberId,
+      createdAt
+    );
+  return getUserById(Number(r.lastInsertRowid))!;
+}
+
+export function updateUserStatus(
+  id: number,
+  status: UserStatus,
+  memberId: number | null
+) {
+  getDb()
+    .prepare("UPDATE users SET status=?, member_id=? WHERE id=?")
+    .run(status, memberId, id);
+}
+
+// ---------- comments ----------
+type CommentDbRow = {
+  id: number;
+  event_id: number;
+  member_id: number;
+  body: string;
+  created_at: string;
+};
+
+function toComment(r: CommentDbRow): CommentRow {
+  return {
+    id: r.id,
+    eventId: r.event_id,
+    memberId: r.member_id,
+    body: r.body,
+    createdAt: r.created_at,
+  };
+}
+
+export function getComments(eventId: number): CommentRow[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM comments WHERE event_id=? ORDER BY created_at")
+    .all(eventId) as CommentDbRow[];
+  return rows.map(toComment);
+}
+
+export function addComment(eventId: number, memberId: number, body: string): CommentRow {
+  const createdAt = new Date().toISOString();
+  const r = getDb()
+    .prepare(
+      "INSERT INTO comments (event_id, member_id, body, created_at) VALUES (?, ?, ?, ?)"
+    )
+    .run(eventId, memberId, body, createdAt);
+  return {
+    id: Number(r.lastInsertRowid),
+    eventId,
+    memberId,
+    body,
+    createdAt,
+  };
 }

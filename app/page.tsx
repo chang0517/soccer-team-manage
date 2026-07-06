@@ -3,22 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import VoteButtons from "@/components/VoteButtons";
-import { useMyId } from "@/components/useMyId";
+import { useSession } from "@/components/useSession";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
-import type {
-  EventItem,
-  Member,
-  RankingRow,
-  VoteRow,
-  VoteStatus,
-} from "@/lib/types";
+import type { EventItem, RankingRow, VoteRow, VoteStatus } from "@/lib/types";
 
 export default function HomePage() {
-  const [members, setMembers] = useState<Member[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [votesByEvent, setVotesByEvent] = useState<Record<number, VoteRow[]>>({});
-  const [myId, setMyId] = useMyId();
+  const { user } = useSession();
+  const myId = user?.memberId ?? null;
 
   const upcoming = events
     .filter((e) => e.date >= todayStr())
@@ -37,7 +31,6 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/members").then((r) => r.json()).then(setMembers);
     fetch("/api/ranking").then((r) => r.json()).then(setRanking);
     fetch("/api/events")
       .then((r) => r.json())
@@ -77,22 +70,19 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-4">
-        <label className="text-xs font-semibold text-zinc-500">내 이름</label>
-        <select
-          className="mt-1 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
-          value={myId ?? ""}
-          onChange={(e) => setMyId(e.target.value ? Number(e.target.value) : null)}
-        >
-          <option value="">이름을 선택하세요 (투표에 사용돼요)</option>
-          {members.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-              {m.backNo != null ? ` (#${m.backNo})` : ""}
-            </option>
-          ))}
-        </select>
-      </section>
+      {!user && (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm">
+          <Link href="/login" className="font-semibold text-emerald-700">
+            로그인
+          </Link>
+          하면 투표하고 활동할 수 있어요.
+        </section>
+      )}
+      {user && !myId && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          아직 멤버 프로필과 연결되지 않았어요. 운영진에게 연결을 요청해 주세요.
+        </section>
+      )}
 
       <section>
         <div className="mb-2 flex items-center justify-between">

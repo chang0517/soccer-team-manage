@@ -31,6 +31,27 @@ export interface Member {
   isGuest: boolean;
 }
 
+export type UserRole = "admin" | "player";
+export type UserStatus = "pending" | "approved" | "rejected";
+
+export interface AppUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  memberId: number | null;
+  createdAt: string;
+}
+
+export interface SessionUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  memberId: number | null;
+}
+
 export type VoteStatus = "attend" | "maybe" | "absent";
 
 export interface SquadSlotAssign {
@@ -66,6 +87,14 @@ export interface VoteRow {
   eventId: number;
   memberId: number;
   status: VoteStatus;
+}
+
+export interface CommentRow {
+  id: number;
+  eventId: number;
+  memberId: number;
+  body: string;
+  createdAt: string;
 }
 
 export interface RecordRow {

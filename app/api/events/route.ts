@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { createEvent, listEvents } from "@/lib/db";
 
 export async function GET() {
@@ -5,6 +6,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!(await requireAdmin())) {
+    return Response.json({ error: "운영진만 일정을 추가할 수 있어요." }, { status: 403 });
+  }
   const body = await request.json();
   if (!body.title?.trim() || !body.date) {
     return Response.json(

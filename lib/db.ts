@@ -1,10 +1,14 @@
 import * as sqlite from "./sqlite";
 import * as pg from "./pg";
 import type {
+  AppUser,
+  CommentRow,
   EventItem,
   Member,
   MvpVoteRow,
   RecordRow,
+  UserRole,
+  UserStatus,
   VoteRow,
   VoteStatus,
 } from "./types";
@@ -78,4 +82,51 @@ export async function setMvpVote(eventId: number, voterId: number, voteeId: numb
 }
 export async function getAllMvpVotes(): Promise<MvpVoteRow[]> {
   return usePg ? pg.getAllMvpVotes() : sqlite.getAllMvpVotes();
+}
+
+export async function countUsers(): Promise<number> {
+  return usePg ? pg.countUsers() : sqlite.countUsers();
+}
+export async function getUserByUsername(
+  username: string
+): Promise<(AppUser & { passwordHash: string }) | null> {
+  return usePg ? pg.getUserByUsername(username) : sqlite.getUserByUsername(username);
+}
+export async function getUserById(id: number): Promise<AppUser | null> {
+  return usePg ? pg.getUserById(id) : sqlite.getUserById(id);
+}
+export async function listUsersByStatus(status: UserStatus): Promise<AppUser[]> {
+  return usePg ? pg.listUsersByStatus(status) : sqlite.listUsersByStatus(status);
+}
+export async function createUser(u: {
+  username: string;
+  passwordHash: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  memberId: number | null;
+}): Promise<AppUser> {
+  return usePg ? pg.createUser(u) : sqlite.createUser(u);
+}
+export async function updateUserStatus(
+  id: number,
+  status: UserStatus,
+  memberId: number | null
+) {
+  return usePg
+    ? pg.updateUserStatus(id, status, memberId)
+    : sqlite.updateUserStatus(id, status, memberId);
+}
+
+export async function getComments(eventId: number): Promise<CommentRow[]> {
+  return usePg ? pg.getComments(eventId) : sqlite.getComments(eventId);
+}
+export async function addComment(
+  eventId: number,
+  memberId: number,
+  body: string
+): Promise<CommentRow> {
+  return usePg
+    ? pg.addComment(eventId, memberId, body)
+    : sqlite.addComment(eventId, memberId, body);
 }

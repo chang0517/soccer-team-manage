@@ -1,12 +1,16 @@
 import { Pool } from "pg";
 import { ROSTER } from "./roster";
 import type {
+  AppUser,
+  CommentRow,
   EventItem,
   Member,
   MvpVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
+  UserRole,
+  UserStatus,
   VoteRow,
   VoteStatus,
 } from "./types";
@@ -74,6 +78,23 @@ async function init() {
       voter_id INTEGER NOT NULL,
       votee_id INTEGER NOT NULL,
       PRIMARY KEY (event_id, voter_id)
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'player',
+      status TEXT NOT NULL DEFAULT 'pending',
+      member_id INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS comments (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
   await pool.query(
@@ -335,4 +356,128 @@ export async function getAllMvpVotes(): Promise<MvpVoteRow[]> {
   const pool = await ready();
   const { rows } = await pool.query("SELECT * FROM mvp_votes");
   return rows.map(toMvpVote);
+}
+
+// ---------- users ----------
+type UserDbRow = {
+  id: number;
+  username: string;
+  password_hash: string;
+  display_name: string;
+  role: UserRole;
+  status: UserStatus;
+  member_id: number | null;
+  created_at: string;
+};
+
+function toUser(r: UserDbRow): AppUser {
+  return {
+    id: r.id,
+    username: r.username,
+    displayName: r.display_name,
+    role: r.role,
+    status: r.status,
+    memberId: r.member_id,
+    createdAt: r.created_at,
+  };
+}
+
+export async function countUsers(): Promise<number> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM users");
+  return rows[0].c;
+}
+
+export async function getUserByUsername(
+  username: string
+): Promise<(AppUser & { passwordHash: string }) | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM users WHERE username=$1", [
+    username,
+  ]);
+  const r = rows[0] as UserDbRow | undefined;
+  return r ? { ...toUser(r), passwordHash: r.password_hash } : null;
+}
+
+export async function getUserById(id: number): Promise<AppUser | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM users WHERE id=$1", [id]);
+  return rows[0] ? toUser(rows[0] as UserDbRow) : null;
+}
+
+export async function listUsersByStatus(status: UserStatus): Promise<AppUser[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM users WHERE status=$1 ORDER BY created_at",
+    [status]
+  );
+  return (rows as UserDbRow[]).map(toUser);
+}
+
+export async function createUser(u: {
+  username: string;
+  passwordHash: string;
+  displayName: string;
+  role: UserRole;
+  status: UserStatus;
+  memberId: number | null;
+}): Promise<AppUser> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "INSERT INTO users (username, password_hash, display_name, role, status, member_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    [u.username, u.passwordHash, u.displayName, u.role, u.status, u.memberId]
+  );
+  return (await getUserById(rows[0].id))!;
+}
+
+export async function updateUserStatus(
+  id: number,
+  status: UserStatus,
+  memberId: number | null
+) {
+  const pool = await ready();
+  await pool.query("UPDATE users SET status=$1, member_id=$2 WHERE id=$3", [
+    status,
+    memberId,
+    id,
+  ]);
+}
+
+// ---------- comments ----------
+function toComment(r: {
+  id: number;
+  event_id: number;
+  member_id: number;
+  body: string;
+  created_at: string;
+}): CommentRow {
+  return {
+    id: r.id,
+    eventId: r.event_id,
+    memberId: r.member_id,
+    body: r.body,
+    createdAt: r.created_at,
+  };
+}
+
+export async function getComments(eventId: number): Promise<CommentRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM comments WHERE event_id=$1 ORDER BY created_at",
+    [eventId]
+  );
+  return rows.map(toComment);
+}
+
+export async function addComment(
+  eventId: number,
+  memberId: number,
+  body: string
+): Promise<CommentRow> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "INSERT INTO comments (event_id, member_id, body) VALUES ($1, $2, $3) RETURNING *",
+    [eventId, memberId, body]
+  );
+  return toComment(rows[0]);
 }

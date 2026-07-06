@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useSession } from "./useSession";
 
-const TABS = [
+const BASE_TABS = [
   { href: "/", label: "홈", icon: "🏠" },
   { href: "/schedule", label: "일정", icon: "📅" },
   { href: "/ranking", label: "랭킹", icon: "🏆" },
@@ -13,8 +14,20 @@ const TABS = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading, logout } = useSession();
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const tabs = user?.role === "admin"
+    ? [...BASE_TABS, { href: "/admin", label: "운영진", icon: "🛠️" }]
+    : BASE_TABS;
+
+  const doLogout = async () => {
+    await logout();
+    router.push("/");
+    router.refresh();
+  };
 
   return (
     <>
@@ -26,26 +39,55 @@ export default function Nav() {
               RAVEN FC
             </span>
           </Link>
-          <nav className="hidden gap-1 md:flex">
-            {TABS.map((t) => (
-              <Link
-                key={t.href}
-                href={t.href}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  isActive(t.href)
-                    ? "bg-emerald-700 text-white"
-                    : "text-emerald-100 hover:bg-emerald-800"
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="flex items-center gap-3">
+            <nav className="hidden gap-1 md:flex">
+              {tabs.map((t) => (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                    isActive(t.href)
+                      ? "bg-emerald-700 text-white"
+                      : "text-emerald-100 hover:bg-emerald-800"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              ))}
+            </nav>
+            {!loading && (
+              <div className="flex items-center gap-2 text-sm">
+                {user ? (
+                  <>
+                    <span className="hidden text-emerald-100 sm:inline">
+                      {user.displayName}님
+                    </span>
+                    <button
+                      onClick={doLogout}
+                      className="rounded-lg bg-emerald-800 px-2.5 py-1.5 text-xs font-semibold text-white"
+                    >
+                      로그아웃
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-semibold text-white"
+                  >
+                    로그인
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <nav className="no-print fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="grid grid-cols-5">
-          {TABS.map((t) => (
+        <div
+          className="grid"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+        >
+          {tabs.map((t) => (
             <Link
               key={t.href}
               href={t.href}
