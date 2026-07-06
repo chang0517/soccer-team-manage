@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { ROSTER } from "./roster";
 import type {
+  AnnouncementRow,
   AppUser,
   CommentRow,
   EventItem,
@@ -104,6 +105,14 @@ async function init() {
       assists INTEGER NOT NULL DEFAULT 0,
       clean_pts DOUBLE PRECISION NOT NULL DEFAULT 0,
       bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS announcements (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
   await pool.query(
@@ -445,14 +454,22 @@ export async function createUser(u: {
 export async function updateUserStatus(
   id: number,
   status: UserStatus,
-  memberId: number | null
+  memberId: number | null,
+  role?: UserRole
 ) {
   const pool = await ready();
-  await pool.query("UPDATE users SET status=$1, member_id=$2 WHERE id=$3", [
-    status,
-    memberId,
-    id,
-  ]);
+  if (role) {
+    await pool.query(
+      "UPDATE users SET status=$1, member_id=$2, role=$3 WHERE id=$4",
+      [status, memberId, role, id]
+    );
+  } else {
+    await pool.query("UPDATE users SET status=$1, member_id=$2 WHERE id=$3", [
+      status,
+      memberId,
+      id,
+    ]);
+  }
 }
 
 // ---------- comments ----------
@@ -536,4 +553,63 @@ export async function upsertHistoricalStats(stats: HistoricalStats) {
       stats.bonusPts,
     ]
   );
+}
+
+function toAnnouncement(r: {
+  id: number;
+  title: string;
+  body: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+}): AnnouncementRow {
+  return {
+    id: r.id,
+    title: r.title,
+    body: r.body,
+    authorName: r.author_name,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export async function listAnnouncements(): Promise<AnnouncementRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM announcements ORDER BY created_at DESC"
+  );
+  return rows.map(toAnnouncement);
+}
+
+export async function getAnnouncement(id: number): Promise<AnnouncementRow | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM announcements WHERE id=$1", [id]);
+  return rows[0] ? toAnnouncement(rows[0]) : null;
+}
+
+export async function createAnnouncement(
+  a: Omit<AnnouncementRow, "id" | "createdAt" | "updatedAt">
+): Promise<AnnouncementRow> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "INSERT INTO announcements (title, body, author_name) VALUES ($1, $2, $3) RETURNING id",
+    [a.title, a.body, a.authorName]
+  );
+  return (await getAnnouncement(rows[0].id))!;
+}
+
+export async function updateAnnouncement(
+  id: number,
+  patch: { title: string; body: string }
+) {
+  const pool = await ready();
+  await pool.query(
+    "UPDATE announcements SET title=$1, body=$2, updated_at=now() WHERE id=$3",
+    [patch.title, patch.body, id]
+  );
+}
+
+export async function deleteAnnouncement(id: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM announcements WHERE id=$1", [id]);
 }

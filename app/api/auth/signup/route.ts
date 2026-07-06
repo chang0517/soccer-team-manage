@@ -1,5 +1,6 @@
 import { hashPassword, setSessionCookie } from "@/lib/auth";
 import { countUsers, createUser, getUserByUsername } from "@/lib/db";
+import { isWhitelistedAdminName } from "@/lib/roles";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -19,11 +20,13 @@ export async function POST(request: Request) {
 
   const isFirstUser = (await countUsers()) === 0;
   const passwordHash = await hashPassword(password);
+  const role =
+    isFirstUser || isWhitelistedAdminName(displayName) ? "admin" : "player";
   const user = await createUser({
     username,
     passwordHash,
     displayName,
-    role: isFirstUser ? "admin" : "player",
+    role,
     status: isFirstUser ? "approved" : "pending",
     memberId: null,
   });

@@ -29,7 +29,8 @@ export async function POST(
       });
       memberId = created.id;
     }
-    await updateUserStatus(Number(id), "approved", memberId);
+    const role = body?.role === "admin" || body?.role === "player" ? body.role : undefined;
+    await updateUserStatus(Number(id), "approved", memberId, role);
     return Response.json({ ok: true, memberId });
   }
 

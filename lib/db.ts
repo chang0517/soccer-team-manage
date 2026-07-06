@@ -1,6 +1,7 @@
 import * as sqlite from "./sqlite";
 import * as pg from "./pg";
 import type {
+  AnnouncementRow,
   AppUser,
   CommentRow,
   EventItem,
@@ -112,11 +113,12 @@ export async function createUser(u: {
 export async function updateUserStatus(
   id: number,
   status: UserStatus,
-  memberId: number | null
+  memberId: number | null,
+  role?: UserRole
 ) {
   return usePg
-    ? pg.updateUserStatus(id, status, memberId)
-    : sqlite.updateUserStatus(id, status, memberId);
+    ? pg.updateUserStatus(id, status, memberId, role)
+    : sqlite.updateUserStatus(id, status, memberId, role);
 }
 
 export async function getComments(eventId: number): Promise<CommentRow[]> {
@@ -139,4 +141,27 @@ export async function upsertHistoricalStats(stats: HistoricalStats) {
   return usePg
     ? pg.upsertHistoricalStats(stats)
     : sqlite.upsertHistoricalStats(stats);
+}
+
+export async function listAnnouncements(): Promise<AnnouncementRow[]> {
+  return usePg ? pg.listAnnouncements() : sqlite.listAnnouncements();
+}
+export async function getAnnouncement(id: number): Promise<AnnouncementRow | null> {
+  return usePg ? pg.getAnnouncement(id) : sqlite.getAnnouncement(id);
+}
+export async function createAnnouncement(
+  a: Omit<AnnouncementRow, "id" | "createdAt" | "updatedAt">
+): Promise<AnnouncementRow> {
+  return usePg ? pg.createAnnouncement(a) : sqlite.createAnnouncement(a);
+}
+export async function updateAnnouncement(
+  id: number,
+  patch: { title: string; body: string }
+) {
+  return usePg
+    ? pg.updateAnnouncement(id, patch)
+    : sqlite.updateAnnouncement(id, patch);
+}
+export async function deleteAnnouncement(id: number) {
+  return usePg ? pg.deleteAnnouncement(id) : sqlite.deleteAnnouncement(id);
 }

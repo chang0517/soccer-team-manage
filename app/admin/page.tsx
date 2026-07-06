@@ -11,6 +11,7 @@ interface ApprovalDraft {
   memberId: string;
   pos1: PosGroup;
   pos2: PosGroup;
+  role: "admin" | "player";
 }
 
 export default function AdminPage() {
@@ -30,7 +31,14 @@ export default function AdminPage() {
       setDrafts((prev) => {
         const next = { ...prev };
         for (const u of p as AppUser[]) {
-          if (!next[u.id]) next[u.id] = { mode: "link", memberId: "", pos1: "CB", pos2: "WB" };
+          if (!next[u.id])
+            next[u.id] = {
+              mode: "link",
+              memberId: "",
+              pos1: "CB",
+              pos2: "WB",
+              role: u.role,
+            };
         }
         return next;
       });
@@ -62,10 +70,15 @@ export default function AdminPage() {
     setBusyId(u.id);
     const body =
       draft.mode === "link"
-        ? { action: "approve", memberId: draft.memberId ? Number(draft.memberId) : null }
+        ? {
+            action: "approve",
+            memberId: draft.memberId ? Number(draft.memberId) : null,
+            role: draft.role,
+          }
         : {
             action: "approve",
             newMember: { name: u.displayName, pos1: draft.pos1, pos2: draft.pos2 },
+            role: draft.role,
           };
     await fetch(`/api/admin/users/${u.id}`, {
       method: "POST",
@@ -106,16 +119,41 @@ export default function AdminPage() {
 
       <div className="space-y-3">
         {pending.map((u) => {
-          const draft = drafts[u.id] ?? { mode: "link", memberId: "", pos1: "CB", pos2: "WB" };
+          const draft = drafts[u.id] ?? {
+            mode: "link",
+            memberId: "",
+            pos1: "CB",
+            pos2: "WB",
+            role: u.role,
+          };
           return (
             <div key={u.id} className="rounded-2xl border border-zinc-200 bg-white p-4">
               <p className="font-bold">
                 {u.displayName}{" "}
                 <span className="font-normal text-zinc-400">@{u.username}</span>
+                {u.role === "admin" && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                    운영진 이름으로 자동 배정됨
+                  </span>
+                )}
               </p>
               <p className="mb-3 text-xs text-zinc-400">
                 {new Date(u.createdAt).toLocaleString("ko-KR")} 가입 신청
               </p>
+
+              <div className="mb-3 flex items-center gap-2 text-sm">
+                <span className="text-xs font-semibold text-zinc-500">권한</span>
+                <select
+                  className={input}
+                  value={draft.role}
+                  onChange={(e) =>
+                    setDraft(u.id, { role: e.target.value as "admin" | "player" })
+                  }
+                >
+                  <option value="player">일반 선수</option>
+                  <option value="admin">운영진</option>
+                </select>
+              </div>
 
               <div className="mb-3 flex gap-2 text-sm">
                 <button

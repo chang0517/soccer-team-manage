@@ -131,3 +131,12 @@ export interface HistoricalStats {
   cleanPts: number;
   bonusPts: number; // 스프레드시트의 수동 가산점 (예: 이현재 +1)
 }
+
+export interface AnnouncementRow {
+  id: number;
+  title: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+}

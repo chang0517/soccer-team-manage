@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { ROSTER } from "./roster";
 import type {
+  AnnouncementRow,
   AppUser,
   CommentRow,
   EventItem,
@@ -92,6 +93,14 @@ function createDb(): Database.Database {
       assists INTEGER NOT NULL DEFAULT 0,
       clean_pts REAL NOT NULL DEFAULT 0,
       bonus_pts REAL NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
@@ -451,11 +460,18 @@ export function createUser(u: {
 export function updateUserStatus(
   id: number,
   status: UserStatus,
-  memberId: number | null
+  memberId: number | null,
+  role?: UserRole
 ) {
-  getDb()
-    .prepare("UPDATE users SET status=?, member_id=? WHERE id=?")
-    .run(status, memberId, id);
+  if (role) {
+    getDb()
+      .prepare("UPDATE users SET status=?, member_id=?, role=? WHERE id=?")
+      .run(status, memberId, role, id);
+  } else {
+    getDb()
+      .prepare("UPDATE users SET status=?, member_id=? WHERE id=?")
+      .run(status, memberId, id);
+  }
 }
 
 // ---------- comments ----------
@@ -544,4 +560,61 @@ export function upsertHistoricalStats(stats: HistoricalStats) {
       stats.cleanPts,
       stats.bonusPts
     );
+}
+
+// ---------- announcements ----------
+type AnnouncementDbRow = {
+  id: number;
+  title: string;
+  body: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+function toAnnouncement(r: AnnouncementDbRow): AnnouncementRow {
+  return {
+    id: r.id,
+    title: r.title,
+    body: r.body,
+    authorName: r.author_name,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function listAnnouncements(): AnnouncementRow[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM announcements ORDER BY created_at DESC")
+    .all() as AnnouncementDbRow[];
+  return rows.map(toAnnouncement);
+}
+
+export function getAnnouncement(id: number): AnnouncementRow | null {
+  const r = getDb().prepare("SELECT * FROM announcements WHERE id=?").get(id) as
+    | AnnouncementDbRow
+    | undefined;
+  return r ? toAnnouncement(r) : null;
+}
+
+export function createAnnouncement(
+  a: Omit<AnnouncementRow, "id" | "createdAt" | "updatedAt">
+): AnnouncementRow {
+  const now = new Date().toISOString();
+  const r = getDb()
+    .prepare(
+      "INSERT INTO announcements (title, body, author_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(a.title, a.body, a.authorName, now, now);
+  return getAnnouncement(Number(r.lastInsertRowid))!;
+}
+
+export function updateAnnouncement(id: number, patch: { title: string; body: string }) {
+  getDb()
+    .prepare("UPDATE announcements SET title=?, body=?, updated_at=? WHERE id=?")
+    .run(patch.title, patch.body, new Date().toISOString(), id);
+}
+
+export function deleteAnnouncement(id: number) {
+  getDb().prepare("DELETE FROM announcements WHERE id=?").run(id);
 }
