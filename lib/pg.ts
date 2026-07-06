@@ -27,7 +27,7 @@ function getPool(): Pool {
     const connectionString = process.env.DATABASE_URL!;
     globalForPg.ravenPool = new Pool({
       connectionString,
-      max: 3,
+      max: 5,
       ssl: /supabase|sslmode=require/.test(connectionString)
         ? { rejectUnauthorized: false }
         : undefined,
@@ -271,6 +271,20 @@ export async function getVotes(eventId: number): Promise<VoteRow[]> {
   const { rows } = await pool.query("SELECT * FROM votes WHERE event_id=$1", [
     eventId,
   ]);
+  return rows.map((r) => ({
+    eventId: r.event_id,
+    memberId: r.member_id,
+    status: r.status as VoteStatus,
+  }));
+}
+
+export async function getVotesForEvents(eventIds: number[]): Promise<VoteRow[]> {
+  if (eventIds.length === 0) return [];
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM votes WHERE event_id = ANY($1::int[])",
+    [eventIds]
+  );
   return rows.map((r) => ({
     eventId: r.event_id,
     memberId: r.member_id,

@@ -286,6 +286,21 @@ export function getVotes(eventId: number): VoteRow[] {
   }));
 }
 
+export function getVotesForEvents(eventIds: number[]): VoteRow[] {
+  if (eventIds.length === 0) return [];
+  const placeholders = eventIds.map(() => "?").join(",");
+  const rows = getDb()
+    .prepare(
+      `SELECT event_id, member_id, status FROM votes WHERE event_id IN (${placeholders})`
+    )
+    .all(...eventIds) as { event_id: number; member_id: number; status: VoteStatus }[];
+  return rows.map((r) => ({
+    eventId: r.event_id,
+    memberId: r.member_id,
+    status: r.status,
+  }));
+}
+
 export function setVote(eventId: number, memberId: number, status: VoteStatus) {
   getDb()
     .prepare(

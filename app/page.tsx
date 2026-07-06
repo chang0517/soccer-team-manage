@@ -20,14 +20,13 @@ export default function HomePage() {
     .slice(0, 3);
 
   const loadVotes = useCallback(async (eventIds: number[]) => {
-    const entries = await Promise.all(
-      eventIds.map(async (id) => {
-        const res = await fetch(`/api/events/${id}`);
-        const data = await res.json();
-        return [id, data.votes as VoteRow[]] as const;
-      })
-    );
-    setVotesByEvent(Object.fromEntries(entries));
+    if (eventIds.length === 0) {
+      setVotesByEvent({});
+      return;
+    }
+    const res = await fetch(`/api/votes?eventIds=${eventIds.join(",")}`);
+    const data = await res.json();
+    setVotesByEvent(data);
   }, []);
 
   useEffect(() => {

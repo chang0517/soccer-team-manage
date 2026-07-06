@@ -52,6 +52,11 @@ export async function deleteEvent(id: number) {
 export async function getVotes(eventId: number): Promise<VoteRow[]> {
   return usePg ? pg.getVotes(eventId) : sqlite.getVotes(eventId);
 }
+export async function getVotesForEvents(eventIds: number[]): Promise<VoteRow[]> {
+  return usePg
+    ? pg.getVotesForEvents(eventIds)
+    : sqlite.getVotesForEvents(eventIds);
+}
 export async function setVote(
   eventId: number,
   memberId: number,
