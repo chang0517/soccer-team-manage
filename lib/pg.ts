@@ -4,6 +4,7 @@ import type {
   AppUser,
   CommentRow,
   EventItem,
+  HistoricalStats,
   Member,
   MvpVoteRow,
   PosGroup,
@@ -96,7 +97,18 @@ async function init() {
       body TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS historical_stats (
+      member_id INTEGER PRIMARY KEY,
+      games INTEGER NOT NULL DEFAULT 0,
+      goals INTEGER NOT NULL DEFAULT 0,
+      assists INTEGER NOT NULL DEFAULT 0,
+      clean_pts DOUBLE PRECISION NOT NULL DEFAULT 0,
+      bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0
+    );
   `);
+  await pool.query(
+    "ALTER TABLE historical_stats ADD COLUMN IF NOT EXISTS bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0"
+  );
   await pool.query(
     "ALTER TABLE members ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false"
   );
@@ -480,4 +492,48 @@ export async function addComment(
     [eventId, memberId, body]
   );
   return toComment(rows[0]);
+}
+
+function toHistorical(r: {
+  member_id: number;
+  games: number;
+  goals: number;
+  assists: number;
+  clean_pts: number;
+  bonus_pts: number;
+}): HistoricalStats {
+  return {
+    memberId: r.member_id,
+    games: r.games,
+    goals: r.goals,
+    assists: r.assists,
+    cleanPts: r.clean_pts,
+    bonusPts: r.bonus_pts,
+  };
+}
+
+export async function getAllHistoricalStats(): Promise<HistoricalStats[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM historical_stats");
+  return rows.map(toHistorical);
+}
+
+export async function upsertHistoricalStats(stats: HistoricalStats) {
+  const pool = await ready();
+  await pool.query(
+    `INSERT INTO historical_stats (member_id, games, goals, assists, clean_pts, bonus_pts)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (member_id) DO UPDATE SET
+       games=EXCLUDED.games, goals=EXCLUDED.goals,
+       assists=EXCLUDED.assists, clean_pts=EXCLUDED.clean_pts,
+       bonus_pts=EXCLUDED.bonus_pts`,
+    [
+      stats.memberId,
+      stats.games,
+      stats.goals,
+      stats.assists,
+      stats.cleanPts,
+      stats.bonusPts,
+    ]
+  );
 }

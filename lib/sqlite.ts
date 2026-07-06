@@ -6,6 +6,7 @@ import type {
   AppUser,
   CommentRow,
   EventItem,
+  HistoricalStats,
   Member,
   MvpVoteRow,
   PosGroup,
@@ -84,10 +85,24 @@ function createDb(): Database.Database {
       body TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS historical_stats (
+      member_id INTEGER PRIMARY KEY,
+      games INTEGER NOT NULL DEFAULT 0,
+      goals INTEGER NOT NULL DEFAULT 0,
+      assists INTEGER NOT NULL DEFAULT 0,
+      clean_pts REAL NOT NULL DEFAULT 0,
+      bonus_pts REAL NOT NULL DEFAULT 0
+    );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
   if (!memberCols.some((c) => c.name === "is_guest")) {
     db.exec("ALTER TABLE members ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0");
+  }
+  const histCols = db.prepare("PRAGMA table_info(historical_stats)").all() as {
+    name: string;
+  }[];
+  if (histCols.length > 0 && !histCols.some((c) => c.name === "bonus_pts")) {
+    db.exec("ALTER TABLE historical_stats ADD COLUMN bonus_pts REAL NOT NULL DEFAULT 0");
   }
   seedIfEmpty(db);
   return db;
@@ -483,4 +498,50 @@ export function addComment(eventId: number, memberId: number, body: string): Com
     body,
     createdAt,
   };
+}
+
+// ---------- historical stats (앱 도입 이전 누적 기록) ----------
+type HistoricalDbRow = {
+  member_id: number;
+  games: number;
+  goals: number;
+  assists: number;
+  clean_pts: number;
+  bonus_pts: number;
+};
+
+function toHistorical(r: HistoricalDbRow): HistoricalStats {
+  return {
+    memberId: r.member_id,
+    games: r.games,
+    goals: r.goals,
+    assists: r.assists,
+    cleanPts: r.clean_pts,
+    bonusPts: r.bonus_pts,
+  };
+}
+
+export function getAllHistoricalStats(): HistoricalStats[] {
+  const rows = getDb().prepare("SELECT * FROM historical_stats").all() as HistoricalDbRow[];
+  return rows.map(toHistorical);
+}
+
+export function upsertHistoricalStats(stats: HistoricalStats) {
+  getDb()
+    .prepare(
+      `INSERT INTO historical_stats (member_id, games, goals, assists, clean_pts, bonus_pts)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(member_id) DO UPDATE SET
+         games=excluded.games, goals=excluded.goals,
+         assists=excluded.assists, clean_pts=excluded.clean_pts,
+         bonus_pts=excluded.bonus_pts`
+    )
+    .run(
+      stats.memberId,
+      stats.games,
+      stats.goals,
+      stats.assists,
+      stats.cleanPts,
+      stats.bonusPts
+    );
 }

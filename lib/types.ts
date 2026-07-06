@@ -121,3 +121,13 @@ export interface RankingRow {
   mvpCount: number;
   total: number;
 }
+
+// 앱 도입 이전(스프레드시트로 관리하던 시절) 누적 기록. 랭킹 계산 시 기준치로 더해진다.
+export interface HistoricalStats {
+  memberId: number;
+  games: number;
+  goals: number;
+  assists: number;
+  cleanPts: number;
+  bonusPts: number; // 스프레드시트의 수동 가산점 (예: 이현재 +1)
+}

@@ -1,11 +1,20 @@
-import type { EventItem, Member, MvpVoteRow, RankingRow, RecordRow } from "./types";
+import type {
+  EventItem,
+  HistoricalStats,
+  Member,
+  MvpVoteRow,
+  RankingRow,
+  RecordRow,
+} from "./types";
 
+// 기존에 스프레드시트로 관리하던 시절 SCORE 공식(참여1.5·골1.4·어시1.25·클린1.25/0.625)을
+// 그대로 이어받아 적용한다. historical_stats(과거 누적) 값도 이 가중치 기준으로 저장된다.
 export const RULES = {
-  participation: 1, // 경기 출전 자체
-  goal: 1,
-  assist: 1,
-  cleanSheetDefence: 1, // GK · 센터백 · 윙백
-  cleanSheetDm: 0.5, // 수비형 미드필더(수미)
+  participation: 1.5, // 경기 출전 자체
+  goal: 1.4,
+  assist: 1.25,
+  cleanSheetDefence: 1.25, // GK · 센터백 · 윙백 (C(1) 풀 클린)
+  cleanSheetDm: 0.625, // 수비형 미드필더(수미) (C(0.5) 하프 클린)
 };
 
 /**
@@ -34,31 +43,37 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
 }
 
 /**
- * 점수 규칙: 출전 1점, 골 1점, 어시스트 1점.
- * 무실점(클린시트) 경기에 출전한 GK·센터백·윙백은 1점, 수미는 0.5점.
+ * 점수 규칙: 출전 1.5점, 골 1.4점, 어시스트 1.25점.
+ * 무실점(클린시트) 경기에 출전한 GK·센터백·윙백은 1.25점, 수미는 0.625점.
  * MVP 선정 횟수는 총점에는 반영하지 않고 별도로 집계한다.
+ * historical(과거 스프레드시트 누적 기록)이 있으면 기준치로 더한다.
  */
 export function computeRanking(
   members: Member[],
   events: EventItem[],
   records: RecordRow[],
-  mvpVotes: MvpVoteRow[] = []
+  mvpVotes: MvpVoteRow[] = [],
+  historical: HistoricalStats[] = []
 ): RankingRow[] {
   const eventById = new Map(events.map((e) => [e.id, e]));
   const mvpCounts = computeMvpCounts(mvpVotes);
+  const historicalById = new Map(historical.map((h) => [h.memberId, h]));
   const rows = new Map<number, RankingRow>(
-    members.map((m) => [
-      m.id,
-      {
-        member: m,
-        played: 0,
-        goals: 0,
-        assists: 0,
-        cleanPts: 0,
-        mvpCount: mvpCounts.get(m.id) ?? 0,
-        total: 0,
-      },
-    ])
+    members.map((m) => {
+      const h = historicalById.get(m.id);
+      return [
+        m.id,
+        {
+          member: m,
+          played: h?.games ?? 0,
+          goals: h?.goals ?? 0,
+          assists: h?.assists ?? 0,
+          cleanPts: h?.cleanPts ?? 0,
+          mvpCount: mvpCounts.get(m.id) ?? 0,
+          total: 0,
+        },
+      ];
+    })
   );
 
   for (const r of records) {
@@ -77,11 +92,13 @@ export function computeRanking(
 
   const out = [...rows.values()];
   for (const row of out) {
+    const bonus = historicalById.get(row.member.id)?.bonusPts ?? 0;
     row.total =
       row.played * RULES.participation +
       row.goals * RULES.goal +
       row.assists * RULES.assist +
-      row.cleanPts;
+      row.cleanPts +
+      bonus;
   }
   out.sort(
     (a, b) =>

@@ -4,6 +4,7 @@ import type {
   AppUser,
   CommentRow,
   EventItem,
+  HistoricalStats,
   Member,
   MvpVoteRow,
   RecordRow,
@@ -129,4 +130,13 @@ export async function addComment(
   return usePg
     ? pg.addComment(eventId, memberId, body)
     : sqlite.addComment(eventId, memberId, body);
+}
+
+export async function getAllHistoricalStats(): Promise<HistoricalStats[]> {
+  return usePg ? pg.getAllHistoricalStats() : sqlite.getAllHistoricalStats();
+}
+export async function upsertHistoricalStats(stats: HistoricalStats) {
+  return usePg
+    ? pg.upsertHistoricalStats(stats)
+    : sqlite.upsertHistoricalStats(stats);
 }
