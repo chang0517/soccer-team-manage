@@ -409,6 +409,13 @@ export function countUsers(): number {
   return row.c;
 }
 
+export function countUsersByDisplayName(displayName: string): number {
+  const row = getDb()
+    .prepare("SELECT COUNT(*) AS c FROM users WHERE display_name=?")
+    .get(displayName) as { c: number };
+  return row.c;
+}
+
 export function getUserByUsername(
   username: string
 ): (AppUser & { passwordHash: string }) | null {

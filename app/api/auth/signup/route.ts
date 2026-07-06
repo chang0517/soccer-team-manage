@@ -1,5 +1,11 @@
 import { hashPassword, setSessionCookie } from "@/lib/auth";
-import { countUsers, createUser, getUserByUsername } from "@/lib/db";
+import {
+  countUsers,
+  countUsersByDisplayName,
+  createUser,
+  getUserByUsername,
+  listMembers,
+} from "@/lib/db";
 import { isWhitelistedAdminName } from "@/lib/roles";
 
 export async function POST(request: Request) {
@@ -19,19 +25,30 @@ export async function POST(request: Request) {
   }
 
   const isFirstUser = (await countUsers()) === 0;
+  const isWhitelisted = isWhitelistedAdminName(displayName);
+  // 화이트리스트 이름이라도 이미 그 이름으로 가입 신청한 이력이 있으면
+  // (동명이인/재신청 등 모호한 상황이므로) 자동 승인하지 않고 운영진 검토를 거친다.
+  const isFirstClaimOfWhitelistedName =
+    isWhitelisted && (await countUsersByDisplayName(displayName)) === 0;
+  const autoApprove = isFirstUser || isFirstClaimOfWhitelistedName;
+
+  let memberId: number | null = null;
+  if (autoApprove) {
+    const members = await listMembers();
+    memberId = members.find((m) => m.name === displayName)?.id ?? null;
+  }
+
   const passwordHash = await hashPassword(password);
-  const role =
-    isFirstUser || isWhitelistedAdminName(displayName) ? "admin" : "player";
   const user = await createUser({
     username,
     passwordHash,
     displayName,
-    role,
-    status: isFirstUser ? "approved" : "pending",
-    memberId: null,
+    role: isFirstUser || isWhitelisted ? "admin" : "player",
+    status: autoApprove ? "approved" : "pending",
+    memberId,
   });
 
-  if (isFirstUser) {
+  if (autoApprove) {
     await setSessionCookie({
       id: user.id,
       username: user.username,

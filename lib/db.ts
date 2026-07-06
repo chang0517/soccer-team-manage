@@ -89,6 +89,11 @@ export async function getAllMvpVotes(): Promise<MvpVoteRow[]> {
 export async function countUsers(): Promise<number> {
   return usePg ? pg.countUsers() : sqlite.countUsers();
 }
+export async function countUsersByDisplayName(displayName: string): Promise<number> {
+  return usePg
+    ? pg.countUsersByDisplayName(displayName)
+    : sqlite.countUsersByDisplayName(displayName);
+}
 export async function getUserByUsername(
   username: string
 ): Promise<(AppUser & { passwordHash: string }) | null> {

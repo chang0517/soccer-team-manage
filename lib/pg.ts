@@ -409,6 +409,15 @@ export async function countUsers(): Promise<number> {
   return rows[0].c;
 }
 
+export async function countUsersByDisplayName(displayName: string): Promise<number> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT COUNT(*)::int AS c FROM users WHERE display_name=$1",
+    [displayName]
+  );
+  return rows[0].c;
+}
+
 export async function getUserByUsername(
   username: string
 ): Promise<(AppUser & { passwordHash: string }) | null> {
