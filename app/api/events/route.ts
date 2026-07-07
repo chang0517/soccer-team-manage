@@ -24,6 +24,10 @@ export async function POST(request: Request) {
     location: body.location ?? "",
     opponent: body.opponent ?? "",
     notes: body.notes ?? "",
+    dutyOffense: body.dutyOffense ?? "",
+    dutyDefense: body.dutyDefense ?? "",
+    waterDuty: body.waterDuty ?? "",
+    iceboxDuty: body.iceboxDuty ?? "",
   });
   return Response.json(event, { status: 201 });
 }

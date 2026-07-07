@@ -18,6 +18,51 @@ export const RULES = {
 };
 
 /**
+ * 각 선수가 실제로 출전한 경기들을 시간순으로 놓고, 가장 최근 경기부터
+ * 거슬러 올라가며 골·어시·클린시트 기여가 끊기지 않고 이어진 횟수를 센다.
+ */
+export function computeStreaks(
+  events: EventItem[],
+  records: RecordRow[]
+): Map<number, number> {
+  const eventById = new Map(events.map((e) => [e.id, e]));
+  const byMember = new Map<number, RecordRow[]>();
+  for (const r of records) {
+    if (!r.played || !eventById.has(r.eventId)) continue;
+    const list = byMember.get(r.memberId) ?? [];
+    list.push(r);
+    byMember.set(r.memberId, list);
+  }
+
+  const streaks = new Map<number, number>();
+  for (const [memberId, recs] of byMember) {
+    const sorted = recs
+      .slice()
+      .sort((a, b) => {
+        const ea = eventById.get(a.eventId)!;
+        const eb = eventById.get(b.eventId)!;
+        return `${ea.date}${ea.time}`.localeCompare(`${eb.date}${eb.time}`);
+      });
+    let streak = 0;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const r = sorted[i];
+      const ev = eventById.get(r.eventId)!;
+      const cleanSheet =
+        ev.conceded === 0 &&
+        (r.position === "GK" ||
+          r.position === "CB" ||
+          r.position === "WB" ||
+          r.position === "DM");
+      const hit = r.goals > 0 || r.assists > 0 || cleanSheet;
+      if (!hit) break;
+      streak++;
+    }
+    streaks.set(memberId, streak);
+  }
+  return streaks;
+}
+
+/**
  * 경기별 MVP 투표를 집계해 각 경기의 최다 득표자(동률이면 모두)를 찾고,
  * 선수별로 MVP로 뽑힌 경기 수를 센다.
  */
@@ -57,6 +102,7 @@ export function computeRanking(
 ): RankingRow[] {
   const eventById = new Map(events.map((e) => [e.id, e]));
   const mvpCounts = computeMvpCounts(mvpVotes);
+  const streaks = computeStreaks(events, records);
   const historicalById = new Map(historical.map((h) => [h.memberId, h]));
   const rows = new Map<number, RankingRow>(
     members.map((m) => {
@@ -71,6 +117,7 @@ export function computeRanking(
           cleanPts: h?.cleanPts ?? 0,
           mvpCount: mvpCounts.get(m.id) ?? 0,
           total: 0,
+          streak: streaks.get(m.id) ?? 0,
         },
       ];
     })
@@ -90,15 +137,21 @@ export function computeRanking(
     }
   }
 
+  // 소수 가중치(1.5·1.4·1.25·0.625)를 더하다 보면 부동소수점 오차로
+  // 24.299999999999997 같은 값이 나올 수 있어 소수 3자리에서 반올림한다.
+  const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
   const out = [...rows.values()];
   for (const row of out) {
     const bonus = historicalById.get(row.member.id)?.bonusPts ?? 0;
-    row.total =
+    row.cleanPts = round3(row.cleanPts);
+    row.total = round3(
       row.played * RULES.participation +
-      row.goals * RULES.goal +
-      row.assists * RULES.assist +
-      row.cleanPts +
-      bonus;
+        row.goals * RULES.goal +
+        row.assists * RULES.assist +
+        row.cleanPts +
+        bonus
+    );
   }
   out.sort(
     (a, b) =>

@@ -10,7 +10,6 @@ const BASE_TABS = [
   { href: "/notice", label: "공지", icon: "📢" },
   { href: "/ranking", label: "랭킹", icon: "🏆" },
   { href: "/members", label: "멤버", icon: "👥" },
-  { href: "/report", label: "보고서", icon: "📝" },
 ];
 
 export default function Nav() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
+import type { DragEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AiRecordImport from "@/components/AiRecordImport";
@@ -66,6 +67,13 @@ export default function EventDetailPage({
   const [commentSaving, setCommentSaving] = useState(false);
   const [adminAddPick, setAdminAddPick] = useState("");
   const [voteError, setVoteError] = useState("");
+  const [dutyDraft, setDutyDraft] = useState({
+    dutyOffense: "",
+    dutyDefense: "",
+    waterDuty: "",
+    iceboxDuty: "",
+  });
+  const [dutySaving, setDutySaving] = useState(false);
   const isAdmin = user?.role === "admin";
 
   const memberById = useMemo(
@@ -89,6 +97,12 @@ export default function EventDetailPage({
     setMembers(mems);
     setScored(ev.scored != null ? String(ev.scored) : "");
     setConceded(ev.conceded != null ? String(ev.conceded) : "");
+    setDutyDraft({
+      dutyOffense: ev.dutyOffense ?? "",
+      dutyDefense: ev.dutyDefense ?? "",
+      waterDuty: ev.waterDuty ?? "",
+      iceboxDuty: ev.iceboxDuty ?? "",
+    });
 
     const recByMember = new Map(recs.map((r) => [r.memberId, r]));
     const memberById2 = new Map((mems as Member[]).map((m) => [m.id, m]));
@@ -96,9 +110,11 @@ export default function EventDetailPage({
     if (ev.squad) {
       for (const qs of ev.squad.quarters) {
         for (const s of qs.starters) {
-          if (s.memberId == null || squadPos.has(s.memberId)) continue;
-          const mem = memberById2.get(s.memberId);
-          if (mem) squadPos.set(s.memberId, slotPositionFor(s.slotId, mem));
+          for (const mid of [s.memberId, s.memberId2]) {
+            if (mid == null || squadPos.has(mid)) continue;
+            const mem = memberById2.get(mid);
+            if (mem) squadPos.set(mid, slotPositionFor(s.slotId, mem));
+          }
         }
       }
     }
@@ -150,8 +166,10 @@ export default function EventDetailPage({
     const counts = new Map<number, number>();
     for (const q of event.squad.quarters) {
       for (const s of q.starters) {
-        if (s.memberId == null) continue;
-        counts.set(s.memberId, (counts.get(s.memberId) ?? 0) + 1);
+        // 하프 분할이면 전반·후반 각각 0.5쿼터씩으로 센다.
+        const weight = s.memberId2 !== undefined ? 0.5 : 1;
+        if (s.memberId != null) counts.set(s.memberId, (counts.get(s.memberId) ?? 0) + weight);
+        if (s.memberId2 != null) counts.set(s.memberId2, (counts.get(s.memberId2) ?? 0) + weight);
       }
     }
     return [...counts.entries()]
@@ -239,23 +257,18 @@ export default function EventDetailPage({
     load();
   };
 
-  const assignSlot = async (
+  // 슬롯 배정을 바꾸는 모든 조작(단일 배정, 하프 분할, 드래그 맞교체, 벤치 교체)의
+  // 공통 진입점. starters 배열을 변형하는 함수를 받아 벤치를 재계산하고 저장한다.
+  const updateStarters = async (
     quarterIdx: number,
-    slotId: string,
-    memberIdRaw: string
+    transform: (starters: SquadData["quarters"][number]["starters"]) => SquadData["quarters"][number]["starters"]
   ) => {
     if (!event.squad) return;
-    const newId = memberIdRaw ? Number(memberIdRaw) : null;
     const quarters = event.squad.quarters.map((q, qi) => {
       if (qi !== quarterIdx) return q;
-      const starters = q.starters.map((s) => {
-        if (s.slotId === slotId) return { ...s, memberId: newId };
-        // 같은 선수가 두 자리에 서지 않게 기존 자리는 비운다
-        if (newId != null && s.memberId === newId) return { ...s, memberId: null };
-        return s;
-      });
+      const starters = transform(q.starters);
       const starterIds = new Set(
-        starters.map((s) => s.memberId).filter((v): v is number => v != null)
+        starters.flatMap((s) => [s.memberId, s.memberId2 ?? null]).filter((v): v is number => v != null)
       );
       return { starters, bench: attendIds.filter((mid) => !starterIds.has(mid)) };
     });
@@ -266,6 +279,88 @@ export default function EventDetailPage({
       body: JSON.stringify({ squad }),
     });
     load();
+  };
+
+  const clearMemberElsewhere = (
+    starters: SquadData["quarters"][number]["starters"],
+    slotId: string,
+    memberId: number
+  ) =>
+    starters.map((s) => {
+      if (s.slotId === slotId) return s;
+      const patch: Partial<{ memberId: number | null; memberId2: number | null }> = {};
+      if (s.memberId === memberId) patch.memberId = null;
+      if (s.memberId2 === memberId) patch.memberId2 = null;
+      return Object.keys(patch).length ? { ...s, ...patch } : s;
+    });
+
+  const assignSlot = (
+    quarterIdx: number,
+    slotId: string,
+    half: "full" | "first" | "second",
+    memberIdRaw: string
+  ) => {
+    const newId = memberIdRaw ? Number(memberIdRaw) : null;
+    updateStarters(quarterIdx, (starters) => {
+      let next = newId != null ? clearMemberElsewhere(starters, slotId, newId) : starters;
+      next = next.map((s) => {
+        if (s.slotId !== slotId) return s;
+        if (half === "first") return { ...s, memberId: newId };
+        if (half === "second") return { ...s, memberId2: newId };
+        return { ...s, memberId: newId };
+      });
+      return next;
+    });
+  };
+
+  const toggleHalfSplit = (quarterIdx: number, slotId: string) => {
+    updateStarters(quarterIdx, (starters) =>
+      starters.map((s) => {
+        if (s.slotId !== slotId) return s;
+        if (s.memberId2 !== undefined) {
+          return { slotId: s.slotId, memberId: s.memberId };
+        }
+        return { ...s, memberId2: null };
+      })
+    );
+  };
+
+  const swapSlots = (quarterIdx: number, slotIdA: string, slotIdB: string) => {
+    if (slotIdA === slotIdB) return;
+    updateStarters(quarterIdx, (starters) => {
+      const a = starters.find((s) => s.slotId === slotIdA);
+      const b = starters.find((s) => s.slotId === slotIdB);
+      if (!a || !b) return starters;
+      return starters.map((s) => {
+        if (s.slotId === slotIdA) return { ...s, memberId: b.memberId, memberId2: b.memberId2 };
+        if (s.slotId === slotIdB) return { ...s, memberId: a.memberId, memberId2: a.memberId2 };
+        return s;
+      });
+    });
+  };
+
+  const substituteFromBench = (quarterIdx: number, slotId: string, benchMemberId: number) => {
+    updateStarters(quarterIdx, (starters) =>
+      clearMemberElsewhere(starters, slotId, benchMemberId).map((s) =>
+        s.slotId === slotId ? { ...s, memberId: benchMemberId } : s
+      )
+    );
+  };
+
+  const handleSlotDragStart = (e: DragEvent, slotId: string) => {
+    e.dataTransfer.setData("text/plain", `slot:${slotId}`);
+  };
+  const handleBenchDragStart = (e: DragEvent, memberId: number) => {
+    e.dataTransfer.setData("text/plain", `bench:${memberId}`);
+  };
+  const handleSlotDrop = (e: DragEvent, targetSlotId: string) => {
+    e.preventDefault();
+    const data = e.dataTransfer.getData("text/plain");
+    if (data.startsWith("slot:")) {
+      swapSlots(activeQuarter, data.slice(5), targetSlotId);
+    } else if (data.startsWith("bench:")) {
+      substituteFromBench(activeQuarter, targetSlotId, Number(data.slice(6)));
+    }
   };
 
   const saveRecords = async () => {
@@ -290,6 +385,17 @@ export default function EventDetailPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ voterId: myId, voteeId: Number(mvpPick) }),
     });
+    load();
+  };
+
+  const saveDuty = async () => {
+    setDutySaving(true);
+    await fetch(`/api/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dutyDraft),
+    });
+    setDutySaving(false);
     load();
   };
 
@@ -377,6 +483,65 @@ export default function EventDetailPage({
           </p>
         )}
       </section>
+
+      {event.type === "match" && (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <h2 className="mb-3 text-base font-bold">비고</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-zinc-500">
+              공격조
+              <input
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                placeholder="공격조 담당자"
+                value={dutyDraft.dutyOffense}
+                onChange={(e) =>
+                  setDutyDraft({ ...dutyDraft, dutyOffense: e.target.value })
+                }
+              />
+            </label>
+            <label className="text-xs font-semibold text-zinc-500">
+              수비조
+              <input
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                placeholder="수비조 담당자"
+                value={dutyDraft.dutyDefense}
+                onChange={(e) =>
+                  setDutyDraft({ ...dutyDraft, dutyDefense: e.target.value })
+                }
+              />
+            </label>
+            <label className="text-xs font-semibold text-zinc-500">
+              물/음료
+              <input
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                placeholder="물/음료 담당자"
+                value={dutyDraft.waterDuty}
+                onChange={(e) =>
+                  setDutyDraft({ ...dutyDraft, waterDuty: e.target.value })
+                }
+              />
+            </label>
+            <label className="text-xs font-semibold text-zinc-500">
+              아이스박스
+              <input
+                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                placeholder="아이스박스 담당자"
+                value={dutyDraft.iceboxDuty}
+                onChange={(e) =>
+                  setDutyDraft({ ...dutyDraft, iceboxDuty: e.target.value })
+                }
+              />
+            </label>
+          </div>
+          <button
+            onClick={saveDuty}
+            disabled={dutySaving}
+            className="mt-3 rounded-xl bg-emerald-700 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            {dutySaving ? "저장 중…" : "비고 저장"}
+          </button>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-4">
         <h2 className="mb-3 text-base font-bold">참석 투표</h2>
@@ -571,7 +736,8 @@ export default function EventDetailPage({
           <p className="mb-3 text-xs text-zinc-400">
             경기 3일 전이 되면 참석 투표 기준으로 쿼터별(1~4쿼터) 스쿼드가
             자동 생성돼요. 포지션은 각자 멤버 탭의 1·2순위 선호를, 출전
-            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요.
+            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요. 아래
+            선수 아이콘을 드래그해서 다른 자리와 맞바꿀 수 있어요.
           </p>
 
           {event.squad ? (
@@ -600,10 +766,15 @@ export default function EventDetailPage({
                   const asg = event.squad!.quarters[activeQuarter].starters.find(
                     (s) => s.slotId === slot.id
                   );
+                  const isSplit = asg?.memberId2 !== undefined;
                   return (
                     <div
                       key={slot.id}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
+                      draggable
+                      onDragStart={(e) => handleSlotDragStart(e, slot.id)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleSlotDrop(e, slot.id)}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab text-center active:cursor-grabbing"
                       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                     >
                       <div
@@ -611,9 +782,15 @@ export default function EventDetailPage({
                       >
                         {slot.label}
                       </div>
-                      <p className="mt-0.5 max-w-16 truncate rounded bg-emerald-950/60 px-1 text-[11px] font-semibold text-white">
-                        {nameOf(asg?.memberId ?? null)}
-                      </p>
+                      {isSplit ? (
+                        <p className="mt-0.5 max-w-20 truncate rounded bg-emerald-950/60 px-1 text-[10px] font-semibold text-white">
+                          {nameOf(asg?.memberId ?? null)} / {nameOf(asg?.memberId2 ?? null)}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 max-w-16 truncate rounded bg-emerald-950/60 px-1 text-[11px] font-semibold text-white">
+                          {nameOf(asg?.memberId ?? null)}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -632,15 +809,26 @@ export default function EventDetailPage({
               </div>
 
               {event.squad.quarters[activeQuarter].bench.length > 0 && (
-                <p className="mt-3 text-sm">
-                  <span className="font-semibold text-zinc-500">교체 대기:</span>{" "}
-                  {event.squad.quarters[activeQuarter].bench
-                    .map((mid) => {
+                <div className="mt-3 text-sm">
+                  <span className="font-semibold text-zinc-500">
+                    교체 대기 (드래그해서 자리에 투입):
+                  </span>{" "}
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    {event.squad.quarters[activeQuarter].bench.map((mid) => {
                       const m = memberById.get(mid);
-                      return m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : "?";
-                    })
-                    .join(", ")}
-                </p>
+                      return (
+                        <span
+                          key={mid}
+                          draggable
+                          onDragStart={(e) => handleBenchDragStart(e, mid)}
+                          className="cursor-grab rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600 active:cursor-grabbing"
+                        >
+                          {m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : "?"}
+                        </span>
+                      );
+                    })}
+                  </span>
+                </div>
               )}
 
               {quarterCounts.length > 0 && (
@@ -676,31 +864,70 @@ export default function EventDetailPage({
                     const asg = event.squad!.quarters[activeQuarter].starters.find(
                       (s) => s.slotId === slot.id
                     );
+                    const isSplit = asg?.memberId2 !== undefined;
+                    const memberOptions = (excludeId: number | null) =>
+                      members
+                        .filter((m) => attendIds.includes(m.id) || m.id === excludeId)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.pos1}/{m.pos2}){m.isGuest ? " · 용병" : ""}
+                          </option>
+                        ));
                     return (
-                      <div key={slot.id} className="flex items-center gap-2">
-                        <span className="w-16 shrink-0 text-xs font-bold text-zinc-500">
-                          {slotDisplayLabel(slot)}
-                        </span>
-                        <select
-                          className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                          value={asg?.memberId ?? ""}
-                          onChange={(e) =>
-                            assignSlot(activeQuarter, slot.id, e.target.value)
-                          }
-                        >
-                          <option value="">(비움)</option>
-                          {members
-                            .filter(
-                              (m) =>
-                                attendIds.includes(m.id) ||
-                                m.id === asg?.memberId
-                            )
-                            .map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} ({m.pos1}/{m.pos2}){m.isGuest ? " · 용병" : ""}
-                              </option>
-                            ))}
-                        </select>
+                      <div key={slot.id} className="space-y-1 rounded-lg border border-zinc-100 p-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-16 shrink-0 text-xs font-bold text-zinc-500">
+                            {slotDisplayLabel(slot)}
+                          </span>
+                          {!isSplit && (
+                            <select
+                              className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                              value={asg?.memberId ?? ""}
+                              onChange={(e) =>
+                                assignSlot(activeQuarter, slot.id, "full", e.target.value)
+                              }
+                            >
+                              <option value="">(비움)</option>
+                              {memberOptions(asg?.memberId ?? null)}
+                            </select>
+                          )}
+                          <button
+                            onClick={() => toggleHalfSplit(activeQuarter, slot.id)}
+                            className="shrink-0 rounded-lg bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600"
+                          >
+                            {isSplit ? "하프분할 취소" : "하프분할"}
+                          </button>
+                        </div>
+                        {isSplit && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex items-center gap-1">
+                              <span className="shrink-0 text-[11px] text-zinc-400">전반</span>
+                              <select
+                                className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                                value={asg?.memberId ?? ""}
+                                onChange={(e) =>
+                                  assignSlot(activeQuarter, slot.id, "first", e.target.value)
+                                }
+                              >
+                                <option value="">(비움)</option>
+                                {memberOptions(asg?.memberId ?? null)}
+                              </select>
+                            </label>
+                            <label className="flex items-center gap-1">
+                              <span className="shrink-0 text-[11px] text-zinc-400">후반</span>
+                              <select
+                                className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                                value={asg?.memberId2 ?? ""}
+                                onChange={(e) =>
+                                  assignSlot(activeQuarter, slot.id, "second", e.target.value)
+                                }
+                              >
+                                <option value="">(비움)</option>
+                                {memberOptions(asg?.memberId2 ?? null)}
+                              </select>
+                            </label>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -741,7 +968,7 @@ export default function EventDetailPage({
             />
             {conceded === "0" && (
               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
-                클린시트 → GK·센터백·윙백 1점, 수미 0.5점
+                클린시트 → GK·센터백·윙백 1.25점, 수미 0.625점
               </span>
             )}
           </div>
@@ -904,13 +1131,6 @@ export default function EventDetailPage({
           )}
         </section>
       )}
-
-      <Link
-        href={`/report/${event.id}`}
-        className="block rounded-2xl border border-zinc-200 bg-white p-4 text-center text-sm font-semibold text-emerald-700 hover:bg-zinc-50"
-      >
-        📝 이 일정으로 활동 보고서 만들기 →
-      </Link>
     </div>
   );
 }

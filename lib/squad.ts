@@ -67,11 +67,21 @@ export function slotPositionFor(slotId: string, member: Member): PosGroup | "" {
   return accepts[0] ?? "";
 }
 
+function shuffle<T>(arr: T[]): T[] {
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 /**
  * 참석자를 포지션 선호도에 따라 쿼터 하나의 스쿼드를 채운다.
  * 1차: 1순위 포지션이 해당 슬롯에 맞는 사람으로 채우고
  * 2차: 남은 슬롯을 2순위 희망자로, 3차: 남은 참석자 아무나로 채운다.
- * 같은 조건이면 이번 경기에서 지금까지 덜 뛴 사람을 우선한다(로테이션).
+ * 같은 조건이면 이번 경기에서 지금까지 덜 뛴 사람을 우선하고(로테이션),
+ * 덜 뛴 정도가 같으면 매번 같은 이름이 먼저 뽑히지 않도록 무작위로 섞는다.
  */
 function fillQuarter(
   attendees: Member[],
@@ -81,11 +91,11 @@ function fillQuarter(
   const used = new Set<number>();
 
   const fill = (matches: (m: Member, slot: SlotDef) => boolean) => {
-    for (const slot of FORMATION_SLOTS) {
+    for (const slot of shuffle(FORMATION_SLOTS)) {
       if (assigned.has(slot.id)) continue;
-      const candidates = attendees
-        .filter((m) => !used.has(m.id) && matches(m, slot))
-        .sort((a, b) => (playCount.get(a.id) ?? 0) - (playCount.get(b.id) ?? 0));
+      const candidates = shuffle(
+        attendees.filter((m) => !used.has(m.id) && matches(m, slot))
+      ).sort((a, b) => (playCount.get(a.id) ?? 0) - (playCount.get(b.id) ?? 0));
       const pick = candidates[0];
       if (pick) {
         assigned.set(slot.id, pick.id);

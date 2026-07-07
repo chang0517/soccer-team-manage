@@ -58,7 +58,11 @@ async function init() {
       scored INTEGER,
       conceded INTEGER,
       squad JSONB,
-      notes TEXT NOT NULL DEFAULT ''
+      notes TEXT NOT NULL DEFAULT '',
+      duty_offense TEXT NOT NULL DEFAULT '',
+      duty_defense TEXT NOT NULL DEFAULT '',
+      water_duty TEXT NOT NULL DEFAULT '',
+      icebox_duty TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS votes (
       event_id INTEGER NOT NULL,
@@ -121,6 +125,11 @@ async function init() {
   await pool.query(
     "ALTER TABLE members ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false"
   );
+  for (const col of ["duty_offense", "duty_defense", "water_duty", "icebox_duty"]) {
+    await pool.query(
+      `ALTER TABLE events ADD COLUMN IF NOT EXISTS ${col} TEXT NOT NULL DEFAULT ''`
+    );
+  }
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
@@ -204,10 +213,30 @@ type EventDbRow = {
   conceded: number | null;
   squad: SquadData | null;
   notes: string;
+  duty_offense: string;
+  duty_defense: string;
+  water_duty: string;
+  icebox_duty: string;
 };
 
 function toEvent(r: EventDbRow): EventItem {
-  return { ...r };
+  return {
+    id: r.id,
+    title: r.title,
+    type: r.type,
+    date: r.date,
+    time: r.time,
+    location: r.location,
+    opponent: r.opponent,
+    scored: r.scored,
+    conceded: r.conceded,
+    squad: r.squad,
+    notes: r.notes,
+    dutyOffense: r.duty_offense,
+    dutyDefense: r.duty_defense,
+    waterDuty: r.water_duty,
+    iceboxDuty: r.icebox_duty,
+  };
 }
 
 export async function listEvents(): Promise<EventItem[]> {
@@ -229,8 +258,20 @@ export async function createEvent(
 ): Promise<EventItem> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO events (title, type, date, time, location, opponent, notes) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-    [e.title, e.type, e.date, e.time, e.location, e.opponent, e.notes]
+    "INSERT INTO events (title, type, date, time, location, opponent, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
+    [
+      e.title,
+      e.type,
+      e.date,
+      e.time,
+      e.location,
+      e.opponent,
+      e.notes,
+      e.dutyOffense ?? "",
+      e.dutyDefense ?? "",
+      e.waterDuty ?? "",
+      e.iceboxDuty ?? "",
+    ]
   );
   return (await getEvent(rows[0].id))!;
 }
@@ -241,7 +282,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   const pool = await ready();
   await pool.query(
-    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10 WHERE id=$11",
+    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14 WHERE id=$15",
     [
       next.title,
       next.type,
@@ -253,6 +294,10 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,
       next.notes,
+      next.dutyOffense ?? "",
+      next.dutyDefense ?? "",
+      next.waterDuty ?? "",
+      next.iceboxDuty ?? "",
       id,
     ]
   );

@@ -22,6 +22,24 @@ export const POS_SHORT: Record<PosGroup, string> = {
   ST: "ST",
 };
 
+export type PosCategory = "ATT" | "MID" | "DEF";
+
+export const POS_CATEGORY: Record<PosGroup, PosCategory> = {
+  GK: "DEF",
+  CB: "DEF",
+  WB: "DEF",
+  DM: "MID",
+  AM: "MID",
+  WG: "ATT",
+  ST: "ATT",
+};
+
+export const POS_CATEGORY_LABELS: Record<PosCategory, string> = {
+  ATT: "공격",
+  MID: "미드필더",
+  DEF: "수비",
+};
+
 export interface Member {
   id: number;
   name: string;
@@ -57,6 +75,8 @@ export type VoteStatus = "attend" | "maybe" | "absent";
 export interface SquadSlotAssign {
   slotId: string;
   memberId: number | null;
+  // 하프 분할: 있으면 전반=memberId, 후반=memberId2 로 한 슬롯을 반씩 나눠 뛴다.
+  memberId2?: number | null;
 }
 
 export interface QuarterSquad {
@@ -81,6 +101,10 @@ export interface EventItem {
   conceded: number | null;
   squad: SquadData | null;
   notes: string;
+  dutyOffense: string;
+  dutyDefense: string;
+  waterDuty: string;
+  iceboxDuty: string;
 }
 
 export interface VoteRow {
@@ -120,6 +144,7 @@ export interface RankingRow {
   cleanPts: number;
   mvpCount: number;
   total: number;
+  streak: number; // 최근 연속 출전 경기 중 "공헌"(골·어시·클린시트 기여)이 이어진 횟수
 }
 
 // 앱 도입 이전(스프레드시트로 관리하던 시절) 누적 기록. 랭킹 계산 시 기준치로 더해진다.
