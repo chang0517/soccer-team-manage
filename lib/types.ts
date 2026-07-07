@@ -100,11 +100,7 @@ export interface EventItem {
   scored: number | null;
   conceded: number | null;
   squad: SquadData | null;
-  notes: string;
-  dutyOffense: string;
-  dutyDefense: string;
-  waterDuty: string;
-  iceboxDuty: string;
+  notes: string; // 홈 화면에서 편집하는 자유 텍스트 비고(물자 담당 등)
 }
 
 export interface VoteRow {

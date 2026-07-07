@@ -11,6 +11,8 @@ export default function HomePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [votesByEvent, setVotesByEvent] = useState<Record<number, VoteRow[]>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [noteSavingId, setNoteSavingId] = useState<number | null>(null);
   const { user } = useSession();
   const myId = user?.memberId ?? null;
 
@@ -41,8 +43,19 @@ export default function HomePage() {
           .slice(0, 3)
           .map((e) => e.id);
         loadVotes(ids);
+        setNoteDrafts(Object.fromEntries(evs.map((e) => [e.id, e.notes])));
       });
   }, [loadVotes]);
+
+  const saveNote = async (eventId: number) => {
+    setNoteSavingId(eventId);
+    await fetch(`/api/events/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: noteDrafts[eventId] ?? "" }),
+    });
+    setNoteSavingId(null);
+  };
 
   const vote = async (eventId: number, status: VoteStatus) => {
     if (!myId) return;
@@ -135,6 +148,27 @@ export default function HomePage() {
                     위에서 내 이름을 먼저 선택하면 투표할 수 있어요.
                   </p>
                 )}
+              </div>
+              <div className="mt-3 border-t border-zinc-100 pt-3">
+                <label className="text-xs font-semibold text-zinc-500">
+                  비고
+                </label>
+                <textarea
+                  className="mt-1 w-full resize-none rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  rows={3}
+                  placeholder={"예)\n공수1: \n공수2: \n물/음료: \n아이스박스: "}
+                  value={noteDrafts[e.id] ?? ""}
+                  onChange={(ev) =>
+                    setNoteDrafts((d) => ({ ...d, [e.id]: ev.target.value }))
+                  }
+                />
+                <button
+                  onClick={() => saveNote(e.id)}
+                  disabled={noteSavingId === e.id}
+                  className="mt-1.5 rounded-lg bg-emerald-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  {noteSavingId === e.id ? "저장 중…" : "비고 저장"}
+                </button>
               </div>
             </div>
           ))}

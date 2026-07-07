@@ -11,9 +11,22 @@ const TABS: { key: PosCategory | "ALL"; label: string }[] = [
   { key: "DEF", label: "수비" },
 ];
 
+type SortKey = "played" | "goals" | "assists" | "cleanPts" | "mvpCount" | "total";
+
+const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "played", label: "출전" },
+  { key: "goals", label: "골" },
+  { key: "assists", label: "어시" },
+  { key: "cleanPts", label: "CS" },
+  { key: "mvpCount", label: "MVP" },
+  { key: "total", label: "총점" },
+];
+
 export default function RankingPage() {
   const [rows, setRows] = useState<RankingRow[]>([]);
   const [tab, setTab] = useState<PosCategory | "ALL">("ALL");
+  const [sortKey, setSortKey] = useState<SortKey>("total");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     fetch("/api/ranking").then((r) => r.json()).then(setRows);
@@ -23,8 +36,23 @@ export default function RankingPage() {
     .filter((r) => r.mvpCount > 0)
     .sort((a, b) => b.mvpCount - a.mvpCount);
 
-  const visibleRows =
-    tab === "ALL" ? rows : rows.filter((r) => POS_CATEGORY[r.member.pos1] === tab);
+  const visibleRows = (
+    tab === "ALL" ? rows : rows.filter((r) => POS_CATEGORY[r.member.pos1] === tab)
+  )
+    .slice()
+    .sort((a, b) => {
+      const diff = a[sortKey] - b[sortKey];
+      return sortDir === "asc" ? diff : -diff;
+    });
+
+  const clickSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -82,12 +110,24 @@ export default function RankingPage() {
             <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500">
               <th className="px-3 py-2.5">순위</th>
               <th className="px-2 py-2.5">이름</th>
-              <th className="px-2 py-2.5 text-center">출전</th>
-              <th className="px-2 py-2.5 text-center">골</th>
-              <th className="px-2 py-2.5 text-center">어시</th>
-              <th className="px-2 py-2.5 text-center">CS</th>
-              <th className="px-2 py-2.5 text-center">MVP</th>
-              <th className="px-3 py-2.5 text-right">총점</th>
+              {SORT_COLUMNS.map((c) => (
+                <th
+                  key={c.key}
+                  className={`px-2 py-2.5 ${c.key === "total" ? "text-right" : "text-center"}`}
+                >
+                  <button
+                    onClick={() => clickSort(c.key)}
+                    className={`inline-flex items-center gap-0.5 font-semibold ${
+                      sortKey === c.key ? "text-emerald-700" : "text-zinc-500"
+                    }`}
+                  >
+                    {c.label}
+                    <span className="text-[10px]">
+                      {sortKey === c.key ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+                    </span>
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>

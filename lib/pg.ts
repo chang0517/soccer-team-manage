@@ -217,10 +217,6 @@ type EventDbRow = {
   conceded: number | null;
   squad: SquadData | null;
   notes: string;
-  duty_offense: string;
-  duty_defense: string;
-  water_duty: string;
-  icebox_duty: string;
 };
 
 function toEvent(r: EventDbRow): EventItem {
@@ -236,10 +232,6 @@ function toEvent(r: EventDbRow): EventItem {
     conceded: r.conceded,
     squad: r.squad,
     notes: r.notes,
-    dutyOffense: r.duty_offense,
-    dutyDefense: r.duty_defense,
-    waterDuty: r.water_duty,
-    iceboxDuty: r.icebox_duty,
   };
 }
 
@@ -262,20 +254,8 @@ export async function createEvent(
 ): Promise<EventItem> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO events (title, type, date, time, location, opponent, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
-    [
-      e.title,
-      e.type,
-      e.date,
-      e.time,
-      e.location,
-      e.opponent,
-      e.notes,
-      e.dutyOffense ?? "",
-      e.dutyDefense ?? "",
-      e.waterDuty ?? "",
-      e.iceboxDuty ?? "",
-    ]
+    "INSERT INTO events (title, type, date, time, location, opponent, notes) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+    [e.title, e.type, e.date, e.time, e.location, e.opponent, e.notes]
   );
   return (await getEvent(rows[0].id))!;
 }
@@ -286,7 +266,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   const pool = await ready();
   await pool.query(
-    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14 WHERE id=$15",
+    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10 WHERE id=$11",
     [
       next.title,
       next.type,
@@ -298,10 +278,6 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,
       next.notes,
-      next.dutyOffense ?? "",
-      next.dutyDefense ?? "",
-      next.waterDuty ?? "",
-      next.iceboxDuty ?? "",
       id,
     ]
   );

@@ -67,13 +67,6 @@ export default function EventDetailPage({
   const [commentSaving, setCommentSaving] = useState(false);
   const [adminAddPick, setAdminAddPick] = useState("");
   const [voteError, setVoteError] = useState("");
-  const [dutyDraft, setDutyDraft] = useState({
-    dutyOffense: "",
-    dutyDefense: "",
-    waterDuty: "",
-    iceboxDuty: "",
-  });
-  const [dutySaving, setDutySaving] = useState(false);
   const isAdmin = user?.role === "admin";
 
   const memberById = useMemo(
@@ -97,12 +90,6 @@ export default function EventDetailPage({
     setMembers(mems);
     setScored(ev.scored != null ? String(ev.scored) : "");
     setConceded(ev.conceded != null ? String(ev.conceded) : "");
-    setDutyDraft({
-      dutyOffense: ev.dutyOffense ?? "",
-      dutyDefense: ev.dutyDefense ?? "",
-      waterDuty: ev.waterDuty ?? "",
-      iceboxDuty: ev.iceboxDuty ?? "",
-    });
 
     const recByMember = new Map(recs.map((r) => [r.memberId, r]));
     const memberById2 = new Map((mems as Member[]).map((m) => [m.id, m]));
@@ -388,17 +375,6 @@ export default function EventDetailPage({
     load();
   };
 
-  const saveDuty = async () => {
-    setDutySaving(true);
-    await fetch(`/api/events/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dutyDraft),
-    });
-    setDutySaving(false);
-    load();
-  };
-
   const removeEvent = async () => {
     if (!confirm("이 일정을 삭제할까요? 투표와 기록도 함께 삭제돼요.")) return;
     await fetch(`/api/events/${id}`, { method: "DELETE" });
@@ -483,65 +459,6 @@ export default function EventDetailPage({
           </p>
         )}
       </section>
-
-      {event.type === "match" && (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-4">
-          <h2 className="mb-3 text-base font-bold">비고</h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label className="text-xs font-semibold text-zinc-500">
-              공격조
-              <input
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                placeholder="공격조 담당자"
-                value={dutyDraft.dutyOffense}
-                onChange={(e) =>
-                  setDutyDraft({ ...dutyDraft, dutyOffense: e.target.value })
-                }
-              />
-            </label>
-            <label className="text-xs font-semibold text-zinc-500">
-              수비조
-              <input
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                placeholder="수비조 담당자"
-                value={dutyDraft.dutyDefense}
-                onChange={(e) =>
-                  setDutyDraft({ ...dutyDraft, dutyDefense: e.target.value })
-                }
-              />
-            </label>
-            <label className="text-xs font-semibold text-zinc-500">
-              물/음료
-              <input
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                placeholder="물/음료 담당자"
-                value={dutyDraft.waterDuty}
-                onChange={(e) =>
-                  setDutyDraft({ ...dutyDraft, waterDuty: e.target.value })
-                }
-              />
-            </label>
-            <label className="text-xs font-semibold text-zinc-500">
-              아이스박스
-              <input
-                className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                placeholder="아이스박스 담당자"
-                value={dutyDraft.iceboxDuty}
-                onChange={(e) =>
-                  setDutyDraft({ ...dutyDraft, iceboxDuty: e.target.value })
-                }
-              />
-            </label>
-          </div>
-          <button
-            onClick={saveDuty}
-            disabled={dutySaving}
-            className="mt-3 rounded-xl bg-emerald-700 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {dutySaving ? "저장 중…" : "비고 저장"}
-          </button>
-        </section>
-      )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-4">
         <h2 className="mb-3 text-base font-bold">참석 투표</h2>
