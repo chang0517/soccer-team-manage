@@ -7,11 +7,26 @@ import { useSession } from "@/components/useSession";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
 import type { EventItem, RankingRow, VoteRow, VoteStatus } from "@/lib/types";
 
+const DUTY_FIELDS: { key: keyof DutyDraft; label: string }[] = [
+  { key: "dutyOffense", label: "공가방1" },
+  { key: "dutyDefense", label: "공가방2" },
+  { key: "waterDuty", label: "물/음료" },
+  { key: "iceboxDuty", label: "아이스박스" },
+];
+
+interface DutyDraft {
+  dutyOffense: string;
+  dutyDefense: string;
+  waterDuty: string;
+  iceboxDuty: string;
+}
+
 export default function HomePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [votesByEvent, setVotesByEvent] = useState<Record<number, VoteRow[]>>({});
-  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, DutyDraft>>({});
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [noteSavingId, setNoteSavingId] = useState<number | null>(null);
   const { user } = useSession();
   const myId = user?.memberId ?? null;
@@ -43,18 +58,40 @@ export default function HomePage() {
           .slice(0, 3)
           .map((e) => e.id);
         loadVotes(ids);
-        setNoteDrafts(Object.fromEntries(evs.map((e) => [e.id, e.notes])));
+        setNoteDrafts(
+          Object.fromEntries(
+            evs.map((e) => [
+              e.id,
+              {
+                dutyOffense: e.dutyOffense ?? "",
+                dutyDefense: e.dutyDefense ?? "",
+                waterDuty: e.waterDuty ?? "",
+                iceboxDuty: e.iceboxDuty ?? "",
+              },
+            ])
+          )
+        );
       });
   }, [loadVotes]);
+
+  const startEditNote = (eventId: number) => setEditingId(eventId);
 
   const saveNote = async (eventId: number) => {
     setNoteSavingId(eventId);
     await fetch(`/api/events/${eventId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: noteDrafts[eventId] ?? "" }),
+      body: JSON.stringify(
+        noteDrafts[eventId] ?? {
+          dutyOffense: "",
+          dutyDefense: "",
+          waterDuty: "",
+          iceboxDuty: "",
+        }
+      ),
     });
     setNoteSavingId(null);
+    setEditingId(null);
   };
 
   const vote = async (eventId: number, status: VoteStatus) => {
@@ -150,25 +187,71 @@ export default function HomePage() {
                 )}
               </div>
               <div className="mt-3 border-t border-zinc-100 pt-3">
-                <label className="text-xs font-semibold text-zinc-500">
-                  비고
-                </label>
-                <textarea
-                  className="mt-1 w-full resize-none rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                  rows={3}
-                  placeholder={"예)\n공수1: \n공수2: \n물/음료: \n아이스박스: "}
-                  value={noteDrafts[e.id] ?? ""}
-                  onChange={(ev) =>
-                    setNoteDrafts((d) => ({ ...d, [e.id]: ev.target.value }))
-                  }
-                />
-                <button
-                  onClick={() => saveNote(e.id)}
-                  disabled={noteSavingId === e.id}
-                  className="mt-1.5 rounded-lg bg-emerald-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
-                >
-                  {noteSavingId === e.id ? "저장 중…" : "비고 저장"}
-                </button>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-500">비고</span>
+                  {editingId !== e.id && (
+                    <button
+                      onClick={() => startEditNote(e.id)}
+                      className="text-xs font-semibold text-emerald-700"
+                    >
+                      수정
+                    </button>
+                  )}
+                </div>
+                {editingId === e.id ? (
+                  <div className="space-y-1.5">
+                    {DUTY_FIELDS.map((f) => (
+                      <div key={f.key} className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-xs text-zinc-400">
+                          {f.label}
+                        </span>
+                        <input
+                          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm"
+                          value={noteDrafts[e.id]?.[f.key] ?? ""}
+                          onChange={(ev) =>
+                            setNoteDrafts((d) => {
+                              const current = d[e.id] ?? {
+                                dutyOffense: "",
+                                dutyDefense: "",
+                                waterDuty: "",
+                                iceboxDuty: "",
+                              };
+                              return {
+                                ...d,
+                                [e.id]: { ...current, [f.key]: ev.target.value },
+                              };
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => saveNote(e.id)}
+                      disabled={noteSavingId === e.id}
+                      className="mt-1 rounded-lg bg-emerald-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
+                    >
+                      {noteSavingId === e.id ? "저장 중…" : "확인"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5 text-sm">
+                    {DUTY_FIELDS.every((f) => !(noteDrafts[e.id]?.[f.key] ?? "")) ? (
+                      <p className="text-xs text-zinc-400">아직 등록된 비고가 없어요.</p>
+                    ) : (
+                      DUTY_FIELDS.map(
+                        (f) =>
+                          noteDrafts[e.id]?.[f.key] && (
+                            <p key={f.key}>
+                              <span className="text-xs font-semibold text-zinc-500">
+                                {f.label}
+                              </span>{" "}
+                              {noteDrafts[e.id][f.key]}
+                            </p>
+                          )
+                      )
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}

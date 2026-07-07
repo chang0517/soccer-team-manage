@@ -77,25 +77,30 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * 참석자를 포지션 선호도에 따라 쿼터 하나의 스쿼드를 채운다.
- * 1차: 1순위 포지션이 해당 슬롯에 맞는 사람으로 채우고
- * 2차: 남은 슬롯을 2순위 희망자로, 3차: 남은 참석자 아무나로 채운다.
- * 같은 조건이면 이번 경기에서 지금까지 덜 뛴 사람을 우선하고(로테이션),
- * 덜 뛴 정도가 같으면 매번 같은 이름이 먼저 뽑히지 않도록 무작위로 섞는다.
+ * 쿼터 하나의 스쿼드를 채운다. 누가 뛸지부터 정하고(이번 경기에서 지금까지
+ * 덜 뛴 사람 순서로 정원만큼 우선 선발 — 인당 쿼터 수가 고르게 나오도록
+ * 보장하는 핵심 로직), 그다음 그 11명을 포지션 선호도에 맞게 슬롯에
+ * 배치한다: 1차 1순위 포지션, 2차 2순위 포지션, 3차 남는 사람 아무 자리나.
+ * 같은 덜 뛴 정도끼리는 매번 같은 이름이 먼저 뽑히지 않도록 무작위로 섞는다.
  */
 function fillQuarter(
   attendees: Member[],
   playCount: Map<number, number>
 ): QuarterSquad {
+  const bySchedulePriority = shuffle(attendees).sort(
+    (a, b) => (playCount.get(a.id) ?? 0) - (playCount.get(b.id) ?? 0)
+  );
+  const starterPool = bySchedulePriority.slice(0, FORMATION_SLOTS.length);
+
   const assigned = new Map<string, number>();
   const used = new Set<number>();
 
   const fill = (matches: (m: Member, slot: SlotDef) => boolean) => {
     for (const slot of shuffle(FORMATION_SLOTS)) {
       if (assigned.has(slot.id)) continue;
-      const candidates = shuffle(
-        attendees.filter((m) => !used.has(m.id) && matches(m, slot))
-      ).sort((a, b) => (playCount.get(a.id) ?? 0) - (playCount.get(b.id) ?? 0));
+      const candidates = starterPool.filter(
+        (m) => !used.has(m.id) && matches(m, slot)
+      );
       const pick = candidates[0];
       if (pick) {
         assigned.set(slot.id, pick.id);

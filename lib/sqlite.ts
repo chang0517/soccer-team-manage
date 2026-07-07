@@ -210,6 +210,10 @@ type EventDbRow = {
   conceded: number | null;
   squad: string | null;
   notes: string;
+  duty_offense: string;
+  duty_defense: string;
+  water_duty: string;
+  icebox_duty: string;
 };
 
 function toEvent(r: EventDbRow): EventItem {
@@ -225,6 +229,10 @@ function toEvent(r: EventDbRow): EventItem {
     conceded: r.conceded,
     squad: r.squad ? (JSON.parse(r.squad) as SquadData) : null,
     notes: r.notes,
+    dutyOffense: r.duty_offense,
+    dutyDefense: r.duty_defense,
+    waterDuty: r.water_duty,
+    iceboxDuty: r.icebox_duty,
   };
 }
 
@@ -247,9 +255,21 @@ export function createEvent(
 ): EventItem {
   const r = getDb()
     .prepare(
-      "INSERT INTO events (title, type, date, time, location, opponent, notes) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO events (title, type, date, time, location, opponent, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
-    .run(e.title, e.type, e.date, e.time, e.location, e.opponent, e.notes);
+    .run(
+      e.title,
+      e.type,
+      e.date,
+      e.time,
+      e.location,
+      e.opponent,
+      e.notes,
+      e.dutyOffense ?? "",
+      e.dutyDefense ?? "",
+      e.waterDuty ?? "",
+      e.iceboxDuty ?? ""
+    );
   return getEvent(Number(r.lastInsertRowid))!;
 }
 
@@ -259,7 +279,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   getDb()
     .prepare(
-      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=? WHERE id=?"
+      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=? WHERE id=?"
     )
     .run(
       next.title,
@@ -272,6 +292,10 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,
       next.notes,
+      next.dutyOffense ?? "",
+      next.dutyDefense ?? "",
+      next.waterDuty ?? "",
+      next.iceboxDuty ?? "",
       id
     );
 }
