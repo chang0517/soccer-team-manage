@@ -17,14 +17,22 @@ export const RULES = {
   cleanSheetDm: 0.625, // 수비형 미드필더(수미) (C(0.5) 하프 클린)
 };
 
+const FIRE_STREAK_THRESHOLD = 3;
+
+export interface StreakInfo {
+  count: number; // 3 이상일 때만 값이 채워짐 (그 미만이면 0)
+  type: "goal" | "assist" | null;
+}
+
 /**
  * 각 선수가 실제로 출전한 경기들을 시간순으로 놓고, 가장 최근 경기부터
- * 거슬러 올라가며 골·어시·클린시트 기여가 끊기지 않고 이어진 횟수를 센다.
+ * 거슬러 올라가며 "골을 넣은 경기"가 이어진 횟수와 "어시스트한 경기"가
+ * 이어진 횟수를 각각 센다. 둘 중 하나라도 3경기 이상 이어지면 그 값을 반환한다.
  */
 export function computeStreaks(
   events: EventItem[],
   records: RecordRow[]
-): Map<number, number> {
+): Map<number, StreakInfo> {
   const eventById = new Map(events.map((e) => [e.id, e]));
   const byMember = new Map<number, RecordRow[]>();
   for (const r of records) {
@@ -34,7 +42,7 @@ export function computeStreaks(
     byMember.set(r.memberId, list);
   }
 
-  const streaks = new Map<number, number>();
+  const streaks = new Map<number, StreakInfo>();
   for (const [memberId, recs] of byMember) {
     const sorted = recs
       .slice()
@@ -43,21 +51,27 @@ export function computeStreaks(
         const eb = eventById.get(b.eventId)!;
         return `${ea.date}${ea.time}`.localeCompare(`${eb.date}${eb.time}`);
       });
-    let streak = 0;
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      const r = sorted[i];
-      const ev = eventById.get(r.eventId)!;
-      const cleanSheet =
-        ev.conceded === 0 &&
-        (r.position === "GK" ||
-          r.position === "CB" ||
-          r.position === "WB" ||
-          r.position === "DM");
-      const hit = r.goals > 0 || r.assists > 0 || cleanSheet;
-      if (!hit) break;
-      streak++;
+
+    const streakFrom = (hit: (r: RecordRow) => boolean) => {
+      let n = 0;
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if (!hit(sorted[i])) break;
+        n++;
+      }
+      return n;
+    };
+    const goalStreak = streakFrom((r) => r.goals > 0);
+    const assistStreak = streakFrom((r) => r.assists > 0);
+
+    if (goalStreak >= FIRE_STREAK_THRESHOLD || assistStreak >= FIRE_STREAK_THRESHOLD) {
+      const isGoal = goalStreak >= assistStreak;
+      streaks.set(memberId, {
+        count: isGoal ? goalStreak : assistStreak,
+        type: isGoal ? "goal" : "assist",
+      });
+    } else {
+      streaks.set(memberId, { count: 0, type: null });
     }
-    streaks.set(memberId, streak);
   }
   return streaks;
 }
@@ -117,7 +131,8 @@ export function computeRanking(
           cleanPts: h?.cleanPts ?? 0,
           mvpCount: mvpCounts.get(m.id) ?? 0,
           total: 0,
-          streak: streaks.get(m.id) ?? 0,
+          streak: streaks.get(m.id)?.count ?? 0,
+          streakType: streaks.get(m.id)?.type ?? null,
         },
       ];
     })

@@ -144,7 +144,8 @@ export interface RankingRow {
   cleanPts: number;
   mvpCount: number;
   total: number;
-  streak: number; // 최근 연속 출전 경기 중 "공헌"(골·어시·클린시트 기여)이 이어진 횟수
+  streak: number; // 3경기 이상일 때만 값이 채워짐(그 미만이면 0) — 연속 골 또는 연속 어시
+  streakType: "goal" | "assist" | null;
 }
 
 // 앱 도입 이전(스프레드시트로 관리하던 시절) 누적 기록. 랭킹 계산 시 기준치로 더해진다.

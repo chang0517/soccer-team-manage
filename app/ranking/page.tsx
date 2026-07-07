@@ -103,10 +103,10 @@ export default function RankingPage() {
                       #{r.member.backNo}
                     </span>
                   )}
-                  {r.streak >= 2 && (
+                  {r.streak >= 3 && (
                     <span
                       className="ml-1 text-xs font-bold text-orange-500"
-                      title={`최근 ${r.streak}경기 연속 공헌`}
+                      title={`최근 ${r.streak}경기 연속 ${r.streakType === "goal" ? "골" : "어시스트"}`}
                     >
                       🔥{r.streak}
                     </span>
