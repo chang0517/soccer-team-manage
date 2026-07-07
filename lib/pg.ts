@@ -27,7 +27,11 @@ function getPool(): Pool {
     const connectionString = process.env.DATABASE_URL!;
     globalForPg.ravenPool = new Pool({
       connectionString,
-      max: 5,
+      // 서버리스는 함수 인스턴스마다 별도 풀을 만들기 때문에 인스턴스당
+      // 커넥션 수를 작게 유지해야 Supabase 풀러의 동시 접속 한도를 넘지 않는다.
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
       ssl: /supabase|sslmode=require/.test(connectionString)
         ? { rejectUnauthorized: false }
         : undefined,
