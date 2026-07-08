@@ -50,7 +50,8 @@ function createDb(): Database.Database {
       duty_offense TEXT NOT NULL DEFAULT '',
       duty_defense TEXT NOT NULL DEFAULT '',
       water_duty TEXT NOT NULL DEFAULT '',
-      icebox_duty TEXT NOT NULL DEFAULT ''
+      icebox_duty TEXT NOT NULL DEFAULT '',
+      record_log TEXT
     );
     CREATE TABLE IF NOT EXISTS votes (
       event_id INTEGER NOT NULL,
@@ -116,6 +117,9 @@ function createDb(): Database.Database {
     if (!eventCols.some((c) => c.name === col)) {
       db.exec(`ALTER TABLE events ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
+  }
+  if (!eventCols.some((c) => c.name === "record_log")) {
+    db.exec("ALTER TABLE events ADD COLUMN record_log TEXT");
   }
   const histCols = db.prepare("PRAGMA table_info(historical_stats)").all() as {
     name: string;
@@ -214,6 +218,7 @@ type EventDbRow = {
   duty_defense: string;
   water_duty: string;
   icebox_duty: string;
+  record_log: string | null;
 };
 
 function toEvent(r: EventDbRow): EventItem {
@@ -233,6 +238,7 @@ function toEvent(r: EventDbRow): EventItem {
     dutyDefense: r.duty_defense,
     waterDuty: r.water_duty,
     iceboxDuty: r.icebox_duty,
+    recordLog: r.record_log ? (JSON.parse(r.record_log) as EventItem["recordLog"]) : null,
   };
 }
 
@@ -279,7 +285,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   getDb()
     .prepare(
-      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=? WHERE id=?"
+      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=? WHERE id=?"
     )
     .run(
       next.title,
@@ -296,6 +302,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
       next.dutyDefense ?? "",
       next.waterDuty ?? "",
       next.iceboxDuty ?? "",
+      next.recordLog ? JSON.stringify(next.recordLog) : null,
       id
     );
 }

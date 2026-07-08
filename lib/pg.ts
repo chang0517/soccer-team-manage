@@ -66,7 +66,8 @@ async function init() {
       duty_offense TEXT NOT NULL DEFAULT '',
       duty_defense TEXT NOT NULL DEFAULT '',
       water_duty TEXT NOT NULL DEFAULT '',
-      icebox_duty TEXT NOT NULL DEFAULT ''
+      icebox_duty TEXT NOT NULL DEFAULT '',
+      record_log JSONB
     );
     CREATE TABLE IF NOT EXISTS votes (
       event_id INTEGER NOT NULL,
@@ -134,6 +135,7 @@ async function init() {
       `ALTER TABLE events ADD COLUMN IF NOT EXISTS ${col} TEXT NOT NULL DEFAULT ''`
     );
   }
+  await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS record_log JSONB");
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
@@ -221,6 +223,7 @@ type EventDbRow = {
   duty_defense: string;
   water_duty: string;
   icebox_duty: string;
+  record_log: EventItem["recordLog"];
 };
 
 function toEvent(r: EventDbRow): EventItem {
@@ -240,6 +243,7 @@ function toEvent(r: EventDbRow): EventItem {
     dutyDefense: r.duty_defense,
     waterDuty: r.water_duty,
     iceboxDuty: r.icebox_duty,
+    recordLog: r.record_log ?? null,
   };
 }
 
@@ -286,7 +290,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   const pool = await ready();
   await pool.query(
-    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14 WHERE id=$15",
+    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14, record_log=$15 WHERE id=$16",
     [
       next.title,
       next.type,
@@ -302,6 +306,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
       next.dutyDefense ?? "",
       next.waterDuty ?? "",
       next.iceboxDuty ?? "",
+      next.recordLog ? JSON.stringify(next.recordLog) : null,
       id,
     ]
   );

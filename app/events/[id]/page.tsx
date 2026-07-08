@@ -4,13 +4,13 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import AiRecordImport from "@/components/AiRecordImport";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
 import { isVotingClosed } from "@/lib/rules";
 import {
   FORMATION_SLOTS,
+  QUARTER_COUNT,
   SLOT_CATEGORY_COLORS,
   slotDisplayLabel,
   slotPositionFor,
@@ -22,19 +22,30 @@ import type {
   Member,
   MvpVoteRow,
   PosGroup,
+  QuarterRecordEntry,
   RecordRow,
   SquadData,
   VoteRow,
   VoteStatus,
 } from "@/lib/types";
 
-interface RecordDraft {
-  memberId: number;
-  played: boolean;
-  goals: number;
-  assists: number;
-  position: string;
+interface GoalEntryDraft {
+  key: string;
+  scorerId: string;
+  assistId: string;
 }
+
+interface QuarterRecordDraft {
+  scored: string;
+  conceded: string;
+  goals: GoalEntryDraft[];
+}
+
+let goalKeySeq = 0;
+const makeGoalKey = () => `g${++goalKeySeq}`;
+
+const emptyRecordQuarters = (): QuarterRecordDraft[] =>
+  Array.from({ length: QUARTER_COUNT }, () => ({ scored: "", conceded: "", goals: [] }));
 
 export default function EventDetailPage({
   params,
@@ -46,9 +57,10 @@ export default function EventDetailPage({
   const [event, setEvent] = useState<EventItem | null>(null);
   const [votes, setVotes] = useState<VoteRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [drafts, setDrafts] = useState<RecordDraft[]>([]);
-  const [scored, setScored] = useState<string>("");
-  const [conceded, setConceded] = useState<string>("");
+  const [recordQuarters, setRecordQuarters] = useState<QuarterRecordDraft[]>(
+    emptyRecordQuarters()
+  );
+  const [recordQuarterIdx, setRecordQuarterIdx] = useState(0);
   const [savedMsg, setSavedMsg] = useState("");
   const { user } = useSession();
   const myId = user?.memberId ?? null;
@@ -74,6 +86,24 @@ export default function EventDetailPage({
     [members]
   );
 
+  // 스쿼드에 배정된 선수의 실제 포지션(전반/후반 하프 분할 포함). 경기 기록
+  // 저장 시 클린시트 보너스 계산용 position 필드를 채우는 데 쓴다.
+  const squadPositionByMember = useMemo(() => {
+    const map = new Map<number, string>();
+    if (event?.squad) {
+      for (const qs of event.squad.quarters) {
+        for (const s of qs.starters) {
+          for (const mid of [s.memberId, s.memberId2]) {
+            if (mid == null || map.has(mid)) continue;
+            const mem = members.find((m) => m.id === mid);
+            if (mem) map.set(mid, slotPositionFor(s.slotId, mem));
+          }
+        }
+      }
+    }
+    return map;
+  }, [event, members]);
+
   const load = useCallback(async () => {
     const [detail, mems, comms] = await Promise.all([
       fetch(`/api/events/${id}`).then((r) => r.json()),
@@ -82,41 +112,27 @@ export default function EventDetailPage({
     ]);
     if (detail.error) return;
     const ev: EventItem = detail.event;
-    const recs: RecordRow[] = detail.records;
     setEvent(ev);
     setVotes(detail.votes);
     setMvpVotes(detail.mvpVotes ?? []);
     setComments(Array.isArray(comms) ? comms : []);
     setMembers(mems);
-    setScored(ev.scored != null ? String(ev.scored) : "");
-    setConceded(ev.conceded != null ? String(ev.conceded) : "");
 
-    const recByMember = new Map(recs.map((r) => [r.memberId, r]));
-    const memberById2 = new Map((mems as Member[]).map((m) => [m.id, m]));
-    const squadPos = new Map<number, string>();
-    if (ev.squad) {
-      for (const qs of ev.squad.quarters) {
-        for (const s of qs.starters) {
-          for (const mid of [s.memberId, s.memberId2]) {
-            if (mid == null || squadPos.has(mid)) continue;
-            const mem = memberById2.get(mid);
-            if (mem) squadPos.set(mid, slotPositionFor(s.slotId, mem));
-          }
-        }
-      }
+    if (Array.isArray(ev.recordLog) && ev.recordLog.length > 0) {
+      setRecordQuarters(
+        ev.recordLog.map((q) => ({
+          scored: q.scored != null ? String(q.scored) : "",
+          conceded: q.conceded != null ? String(q.conceded) : "",
+          goals: q.goals.map((g) => ({
+            key: makeGoalKey(),
+            scorerId: g.scorerId != null ? String(g.scorerId) : "",
+            assistId: g.assistId != null ? String(g.assistId) : "",
+          })),
+        }))
+      );
+    } else {
+      setRecordQuarters(emptyRecordQuarters());
     }
-    setDrafts(
-      (mems as Member[]).map((m) => {
-        const r = recByMember.get(m.id);
-        return {
-          memberId: m.id,
-          played: r ? !!r.played : squadPos.has(m.id),
-          goals: r?.goals ?? 0,
-          assists: r?.assists ?? 0,
-          position: r?.position || squadPos.get(m.id) || m.pos1,
-        };
-      })
-    );
   }, [id]);
 
   useEffect(() => {
@@ -137,6 +153,8 @@ export default function EventDetailPage({
     (m) => !votes.some((v) => v.memberId === m.id)
   );
   const voteClosed = isVotingClosed(daysUntil(event.date), counts.attend);
+  const isSquadLocked = !!event.squad?.confirmed;
+  const canEditSquad = !isSquadLocked || isAdmin;
 
   const mvpTally = (() => {
     const counts = new Map<number, number>();
@@ -169,6 +187,44 @@ export default function EventDetailPage({
             "ko"
           )
       );
+  })();
+
+  // 쿼터별 입력을 합산한 요약 — 미리보기와 저장 둘 다 이 값을 쓴다.
+  const recordSummary = (() => {
+    let scoredSum = 0;
+    let concededSum = 0;
+    let anyScored = false;
+    let anyConceded = false;
+    const goals = new Map<number, number>();
+    const assists = new Map<number, number>();
+    for (const q of recordQuarters) {
+      if (q.scored !== "") {
+        scoredSum += Number(q.scored) || 0;
+        anyScored = true;
+      }
+      if (q.conceded !== "") {
+        concededSum += Number(q.conceded) || 0;
+        anyConceded = true;
+      }
+      for (const g of q.goals) {
+        if (g.scorerId) {
+          const mid = Number(g.scorerId);
+          goals.set(mid, (goals.get(mid) ?? 0) + 1);
+        }
+        if (g.assistId) {
+          const mid = Number(g.assistId);
+          assists.set(mid, (assists.get(mid) ?? 0) + 1);
+        }
+      }
+    }
+    const attendedIds = new Set([...attendIds, ...goals.keys(), ...assists.keys()]);
+    return {
+      scored: anyScored ? scoredSum : null,
+      conceded: anyConceded ? concededSum : null,
+      goals,
+      assists,
+      attendedIds,
+    };
   })();
 
   const vote = async (status: VoteStatus) => {
@@ -241,6 +297,16 @@ export default function EventDetailPage({
 
   const regenerate = async () => {
     await fetch(`/api/events/${id}/squad`, { method: "POST" });
+    load();
+  };
+
+  const setSquadConfirmed = async (confirmed: boolean) => {
+    if (!event.squad) return;
+    await fetch(`/api/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ squad: { ...event.squad, confirmed } }),
+    });
     load();
   };
 
@@ -350,18 +416,78 @@ export default function EventDetailPage({
     }
   };
 
+  const updateQuarterScore = (
+    qi: number,
+    patch: Partial<{ scored: string; conceded: string }>
+  ) =>
+    setRecordQuarters((qs) => qs.map((q, i) => (i === qi ? { ...q, ...patch } : q)));
+
+  const addGoal = (qi: number) =>
+    setRecordQuarters((qs) =>
+      qs.map((q, i) =>
+        i === qi
+          ? { ...q, goals: [...q.goals, { key: makeGoalKey(), scorerId: "", assistId: "" }] }
+          : q
+      )
+    );
+
+  const removeGoal = (qi: number, key: string) =>
+    setRecordQuarters((qs) =>
+      qs.map((q, i) => (i === qi ? { ...q, goals: q.goals.filter((g) => g.key !== key) } : q))
+    );
+
+  const updateGoal = (
+    qi: number,
+    key: string,
+    patch: Partial<{ scorerId: string; assistId: string }>
+  ) =>
+    setRecordQuarters((qs) =>
+      qs.map((q, i) =>
+        i === qi
+          ? { ...q, goals: q.goals.map((g) => (g.key === key ? { ...g, ...patch } : g)) }
+          : q
+      )
+    );
+
   const saveRecords = async () => {
+    const records: Omit<RecordRow, "eventId">[] = [...recordSummary.attendedIds].map(
+      (mid) => ({
+        memberId: mid,
+        played: 1,
+        goals: recordSummary.goals.get(mid) ?? 0,
+        assists: recordSummary.assists.get(mid) ?? 0,
+        position:
+          (squadPositionByMember.get(mid) as PosGroup | undefined) ||
+          memberById.get(mid)?.pos1 ||
+          "",
+      })
+    );
+    const recordLog: QuarterRecordEntry[] = recordQuarters.map((q) => ({
+      scored: q.scored === "" ? null : Number(q.scored),
+      conceded: q.conceded === "" ? null : Number(q.conceded),
+      goals: q.goals
+        .filter((g) => g.scorerId || g.assistId)
+        .map((g) => ({
+          scorerId: g.scorerId ? Number(g.scorerId) : null,
+          assistId: g.assistId ? Number(g.assistId) : null,
+        })),
+    }));
     await fetch(`/api/events/${id}/records`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        scored: scored === "" ? null : Number(scored),
-        conceded: conceded === "" ? null : Number(conceded),
-        records: drafts,
+        scored: recordSummary.scored,
+        conceded: recordSummary.conceded,
+        records,
+        recordLog,
       }),
     });
-    setSavedMsg("기록이 저장됐어요.");
-    setTimeout(() => setSavedMsg(""), 2500);
+    setSavedMsg(
+      recordSummary.scored != null && recordSummary.conceded != null
+        ? `기록이 저장되고 최종 스코어 ${recordSummary.scored} : ${recordSummary.conceded}로 게시됐어요.`
+        : "기록이 저장됐어요."
+    );
+    setTimeout(() => setSavedMsg(""), 3000);
     load();
   };
 
@@ -379,31 +505,6 @@ export default function EventDetailPage({
     if (!confirm("이 일정을 삭제할까요? 투표와 기록도 함께 삭제돼요.")) return;
     await fetch(`/api/events/${id}`, { method: "DELETE" });
     router.push("/schedule");
-  };
-
-  const updateDraft = (memberId: number, patch: Partial<RecordDraft>) =>
-    setDrafts((ds) =>
-      ds.map((d) => (d.memberId === memberId ? { ...d, ...patch } : d))
-    );
-
-  const applyAiResults = (
-    results: { memberId: number; goals: number; assists: number }[],
-    score: { scored: number | null; conceded: number | null } | null
-  ) => {
-    setDrafts((ds) =>
-      ds.map((d) => {
-        const r = results.find((x) => x.memberId === d.memberId);
-        if (!r) return d;
-        return {
-          ...d,
-          played: true,
-          goals: d.goals + r.goals,
-          assists: d.assists + r.assists,
-        };
-      })
-    );
-    if (score?.scored != null) setScored(String(score.scored));
-    if (score?.conceded != null) setConceded(String(score.conceded));
   };
 
   const nameOf = (mid: number | null) =>
@@ -641,20 +742,41 @@ export default function EventDetailPage({
 
       {event.type === "match" && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold">스쿼드 (4-1-2-2-1)</h2>
-            <button
-              onClick={regenerate}
-              className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              {event.squad ? "다시 생성" : "자동 생성"}
-            </button>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold">스쿼드 (4-1-2-2-1)</h2>
+              {isSquadLocked && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                  🔒 확정된 스쿼드
+                </span>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-1.5">
+              {isAdmin && event.squad && (
+                <button
+                  onClick={() => setSquadConfirmed(!isSquadLocked)}
+                  className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  {isSquadLocked ? "확정 해제" : "확정"}
+                </button>
+              )}
+              {canEditSquad && (
+                <button
+                  onClick={regenerate}
+                  className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  {event.squad ? "다시 생성" : "자동 생성"}
+                </button>
+              )}
+            </div>
           </div>
           <p className="mb-3 text-xs text-zinc-400">
             경기 3일 전이 되면 참석 투표 기준으로 쿼터별(1~4쿼터) 스쿼드가
             자동 생성돼요. 포지션은 각자 멤버 탭의 1·2순위 선호를, 출전
-            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요. 아래
-            선수 아이콘을 드래그해서 다른 자리와 맞바꿀 수 있어요.
+            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요.
+            {canEditSquad
+              ? " 아래 선수 아이콘을 드래그해서 다른 자리와 맞바꿀 수 있어요."
+              : " 스쿼드가 확정돼서 운영진만 수정할 수 있어요."}
           </p>
 
           {event.squad ? (
@@ -687,11 +809,13 @@ export default function EventDetailPage({
                   return (
                     <div
                       key={slot.id}
-                      draggable
-                      onDragStart={(e) => handleSlotDragStart(e, slot.id)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => handleSlotDrop(e, slot.id)}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 cursor-grab text-center active:cursor-grabbing"
+                      draggable={canEditSquad}
+                      onDragStart={
+                        canEditSquad ? (e) => handleSlotDragStart(e, slot.id) : undefined
+                      }
+                      onDragOver={canEditSquad ? (e) => e.preventDefault() : undefined}
+                      onDrop={canEditSquad ? (e) => handleSlotDrop(e, slot.id) : undefined}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 text-center ${canEditSquad ? "cursor-grab active:cursor-grabbing" : ""}`}
                       style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                     >
                       <div
@@ -728,7 +852,7 @@ export default function EventDetailPage({
               {event.squad.quarters[activeQuarter].bench.length > 0 && (
                 <div className="mt-3 text-sm">
                   <span className="font-semibold text-zinc-500">
-                    교체 대기 (드래그해서 자리에 투입):
+                    교체 대기{canEditSquad && " (드래그해서 자리에 투입)"}:
                   </span>{" "}
                   <span className="mt-1 flex flex-wrap gap-1.5">
                     {event.squad.quarters[activeQuarter].bench.map((mid) => {
@@ -736,9 +860,11 @@ export default function EventDetailPage({
                       return (
                         <span
                           key={mid}
-                          draggable
-                          onDragStart={(e) => handleBenchDragStart(e, mid)}
-                          className="cursor-grab rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600 active:cursor-grabbing"
+                          draggable={canEditSquad}
+                          onDragStart={
+                            canEditSquad ? (e) => handleBenchDragStart(e, mid) : undefined
+                          }
+                          className={`rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600 ${canEditSquad ? "cursor-grab active:cursor-grabbing" : ""}`}
                         >
                           {m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : "?"}
                         </span>
@@ -772,6 +898,7 @@ export default function EventDetailPage({
                 </details>
               )}
 
+              {canEditSquad && (
               <details className="mt-3">
                 <summary className="cursor-pointer text-sm font-semibold text-emerald-700">
                   {activeQuarter + 1}쿼터 수동으로 조정하기
@@ -850,6 +977,7 @@ export default function EventDetailPage({
                   })}
                 </div>
               </details>
+              )}
             </>
           ) : (
             <p className="rounded-xl border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-400">
@@ -864,124 +992,139 @@ export default function EventDetailPage({
         <section className="rounded-2xl border border-zinc-200 bg-white p-4">
           <h2 className="mb-1 text-base font-bold">경기 기록</h2>
           <p className="mb-3 text-xs text-zinc-400">
-            출전 체크만 해도 1점, 골·어시 각 1점이 더해져요.
+            쿼터별로 스코어와 득점·어시스트를 입력하면 자동으로 합산돼서 최종
+            스코어와 개인 기록에 반영돼요. 참석 투표한 사람만 선택할 수 있어요.
           </p>
-          <div className="mb-4 flex items-center gap-3">
-            <label className="text-sm font-semibold">득점</label>
+
+          <div className="mb-3 grid grid-cols-4 gap-1.5">
+            {recordQuarters.map((_, qi) => (
+              <button
+                key={qi}
+                onClick={() => setRecordQuarterIdx(qi)}
+                className={`rounded-xl py-2 text-sm font-semibold ${
+                  recordQuarterIdx === qi
+                    ? "bg-emerald-700 text-white"
+                    : "bg-zinc-100 text-zinc-600"
+                }`}
+              >
+                {qi + 1}쿼터
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-3 flex items-center gap-3">
+            <label className="text-sm font-semibold">이 쿼터 득점</label>
             <input
               type="number"
               min={0}
               className={numInput}
-              value={scored}
-              onChange={(e) => setScored(e.target.value)}
+              value={recordQuarters[recordQuarterIdx].scored}
+              onChange={(e) =>
+                updateQuarterScore(recordQuarterIdx, { scored: e.target.value })
+              }
             />
             <label className="text-sm font-semibold">실점</label>
             <input
               type="number"
               min={0}
               className={numInput}
-              value={conceded}
-              onChange={(e) => setConceded(e.target.value)}
+              value={recordQuarters[recordQuarterIdx].conceded}
+              onChange={(e) =>
+                updateQuarterScore(recordQuarterIdx, { conceded: e.target.value })
+              }
             />
-            {conceded === "0" && (
-              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
-                클린시트 → GK·센터백·윙백 1.25점, 수미 0.625점
-              </span>
-            )}
           </div>
 
-          <AiRecordImport members={members} onApply={applyAiResults} />
+          <div className="space-y-2">
+            {recordQuarters[recordQuarterIdx].goals.length === 0 && (
+              <p className="text-xs text-zinc-400">
+                이 쿼터에 입력된 골이 없어요.
+              </p>
+            )}
+            {recordQuarters[recordQuarterIdx].goals.map((g) => (
+              <div key={g.key} className="flex items-center gap-2">
+                <select
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  value={g.scorerId}
+                  onChange={(e) =>
+                    updateGoal(recordQuarterIdx, g.key, { scorerId: e.target.value })
+                  }
+                >
+                  <option value="">득점자 선택</option>
+                  {members
+                    .filter((m) => attendIds.includes(m.id))
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                        {m.isGuest ? " · 용병" : ""}
+                      </option>
+                    ))}
+                </select>
+                <select
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  value={g.assistId}
+                  onChange={(e) =>
+                    updateGoal(recordQuarterIdx, g.key, { assistId: e.target.value })
+                  }
+                >
+                  <option value="">어시 없음</option>
+                  {members
+                    .filter((m) => attendIds.includes(m.id) && String(m.id) !== g.scorerId)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                        {m.isGuest ? " · 용병" : ""}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => removeGoal(recordQuarterIdx, g.key)}
+                  className="shrink-0 text-xs text-red-500"
+                >
+                  삭제
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => addGoal(recordQuarterIdx)}
+              className="w-full rounded-lg border border-dashed border-zinc-300 py-1.5 text-xs font-semibold text-emerald-700"
+            >
+              + 이 쿼터에 골 추가
+            </button>
+          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500">
-                  <th className="py-2 pr-2">출전</th>
-                  <th className="py-2 pr-2">이름</th>
-                  <th className="py-2 pr-2">포지션</th>
-                  <th className="py-2 pr-2 text-center">골</th>
-                  <th className="py-2 text-center">어시</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drafts
-                  .slice()
-                  .sort((a, b) => {
-                    const ax = attendIds.includes(a.memberId) || a.played ? 0 : 1;
-                    const bx = attendIds.includes(b.memberId) || b.played ? 0 : 1;
-                    if (ax !== bx) return ax - bx;
-                    return (memberById.get(a.memberId)?.name ?? "").localeCompare(
-                      memberById.get(b.memberId)?.name ?? "",
-                      "ko"
-                    );
-                  })
-                  .map((d) => (
-                    <tr key={d.memberId} className="border-b border-zinc-100">
-                      <td className="py-1.5 pr-2">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-emerald-700"
-                          checked={d.played}
-                          onChange={(e) =>
-                            updateDraft(d.memberId, { played: e.target.checked })
-                          }
-                        />
-                      </td>
-                      <td className="py-1.5 pr-2 font-medium">
-                        {memberById.get(d.memberId)?.name}
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <select
-                          className="rounded-lg border border-zinc-300 bg-white px-1.5 py-1 text-xs"
-                          value={d.position}
-                          onChange={(e) =>
-                            updateDraft(d.memberId, { position: e.target.value })
-                          }
-                        >
-                          {POS_GROUPS.map((g) => (
-                            <option key={g} value={g}>
-                              {g}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-1.5 pr-2 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          className={numInput}
-                          value={d.goals}
-                          onChange={(e) =>
-                            updateDraft(d.memberId, {
-                              goals: Number(e.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="py-1.5 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          className={numInput}
-                          value={d.assists}
-                          onChange={(e) =>
-                            updateDraft(d.memberId, {
-                              assists: Number(e.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+          <div className="mt-4 rounded-xl bg-zinc-50 p-3 text-sm">
+            <p className="font-semibold text-zinc-600">
+              전체 합산 스코어: {recordSummary.scored ?? "?"} : {recordSummary.conceded ?? "?"}
+              {recordSummary.conceded === 0 && (
+                <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
+                  클린시트 → GK·센터백·윙백 1.25점, 수미 0.625점
+                </span>
+              )}
+            </p>
+            {recordSummary.goals.size > 0 && (
+              <p className="mt-1 text-xs text-zinc-500">
+                득점:{" "}
+                {[...recordSummary.goals.entries()]
+                  .map(([mid, n]) => `${memberById.get(mid)?.name ?? "?"} ${n}`)
+                  .join(", ")}
+              </p>
+            )}
+            {recordSummary.assists.size > 0 && (
+              <p className="mt-1 text-xs text-zinc-500">
+                어시스트:{" "}
+                {[...recordSummary.assists.entries()]
+                  .map(([mid, n]) => `${memberById.get(mid)?.name ?? "?"} ${n}`)
+                  .join(", ")}
+              </p>
+            )}
           </div>
 
           <button
             onClick={saveRecords}
             className="mt-4 w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white"
           >
-            기록 저장
+            저장하고 게시
           </button>
           {savedMsg && (
             <p className="mt-2 text-center text-sm font-semibold text-emerald-700">

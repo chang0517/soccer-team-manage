@@ -28,9 +28,11 @@ export async function GET(
     event = (await getEvent(event.id))!;
   }
 
-  // 포메이션이 바뀌어 슬롯 구성이 달라진 예전 스쿼드도 마찬가지로 비운다.
+  // 포메이션이 바뀌어 슬롯 구성이 달라진 예전 스쿼드도 마찬가지로 비운다
+  // (단, 운영진이 확정한 스쿼드는 그대로 둔다).
   if (
     event.squad &&
+    !event.squad.confirmed &&
     event.squad.quarters.some((q) =>
       q.starters.some((s) => !CURRENT_SLOT_IDS.has(s.slotId))
     )
@@ -68,6 +70,15 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await request.json();
+  if (body.squad !== undefined) {
+    const current = await getEvent(Number(id));
+    if (current?.squad?.confirmed && !(await requireAdmin())) {
+      return Response.json(
+        { error: "확정된 스쿼드는 운영진만 수정할 수 있어요." },
+        { status: 403 }
+      );
+    }
+  }
   await updateEvent(Number(id), body);
   return Response.json({ ok: true });
 }

@@ -87,6 +87,21 @@ export interface QuarterSquad {
 export interface SquadData {
   quarters: QuarterSquad[]; // 1~4쿼터, 각각 독립된 스쿼드
   generatedAt: string;
+  // 운영진이 "확정"을 누르면 true — 이후엔 운영진만 스쿼드를 바꿀 수 있다.
+  confirmed?: boolean;
+}
+
+export interface QuarterGoalEntry {
+  scorerId: number | null;
+  assistId: number | null;
+}
+
+// 쿼터별 경기 기록 입력 원본(스코어 + 골/어시 로그). 저장 시 이 로그를 합산해서
+// records 테이블(선수별 누적 골·어시)과 event.scored/conceded를 채운다.
+export interface QuarterRecordEntry {
+  scored: number | null;
+  conceded: number | null;
+  goals: QuarterGoalEntry[];
 }
 
 export interface EventItem {
@@ -108,6 +123,8 @@ export interface EventItem {
   dutyDefense: string;
   waterDuty: string;
   iceboxDuty: string;
+  // 쿼터별 기록 입력 화면의 원본 로그(스코어+골/어시). 없으면 아직 입력 전.
+  recordLog: QuarterRecordEntry[] | null;
 }
 
 export interface VoteRow {

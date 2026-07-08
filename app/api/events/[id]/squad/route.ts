@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { getEvent, getVotes, listMembers, updateEvent } from "@/lib/db";
 import { generateSquad } from "@/lib/squad";
 
@@ -9,6 +10,13 @@ export async function POST(
   const eventId = Number(id);
   const event = await getEvent(eventId);
   if (!event) return Response.json({ error: "not found" }, { status: 404 });
+
+  if (event.squad?.confirmed && !(await requireAdmin())) {
+    return Response.json(
+      { error: "확정된 스쿼드는 운영진만 다시 생성할 수 있어요." },
+      { status: 403 }
+    );
+  }
 
   const attendIds = new Set(
     (await getVotes(eventId))

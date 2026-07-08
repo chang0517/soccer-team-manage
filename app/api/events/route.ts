@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     dutyDefense: body.dutyDefense ?? "",
     waterDuty: body.waterDuty ?? "",
     iceboxDuty: body.iceboxDuty ?? "",
+    recordLog: null,
   });
   return Response.json(event, { status: 201 });
 }
