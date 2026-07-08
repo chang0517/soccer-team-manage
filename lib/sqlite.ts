@@ -7,6 +7,7 @@ import type {
   AppUser,
   CommentRow,
   EventItem,
+  HallOfFameRow,
   HistoricalStats,
   Member,
   MvpVoteRow,
@@ -107,6 +108,17 @@ function createDb(): Database.Database {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS hall_of_fame (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER NOT NULL UNIQUE,
+      captain_id INTEGER,
+      vice_captain_id INTEGER,
+      manager_id INTEGER,
+      top_scorer_id INTEGER,
+      top_assist_id INTEGER,
+      clean_sheet_first_id INTEGER,
+      overall_first_id INTEGER
+    );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
   if (!memberCols.some((c) => c.name === "is_guest")) {
@@ -120,6 +132,10 @@ function createDb(): Database.Database {
   }
   if (!eventCols.some((c) => c.name === "record_log")) {
     db.exec("ALTER TABLE events ADD COLUMN record_log TEXT");
+  }
+  const hofCols = db.prepare("PRAGMA table_info(hall_of_fame)").all() as { name: string }[];
+  if (hofCols.length > 0 && !hofCols.some((c) => c.name === "clean_sheet_first_id")) {
+    db.exec("ALTER TABLE hall_of_fame ADD COLUMN clean_sheet_first_id INTEGER");
   }
   const histCols = db.prepare("PRAGMA table_info(historical_stats)").all() as {
     name: string;
@@ -680,4 +696,71 @@ export function updateAnnouncement(id: number, patch: { title: string; body: str
 
 export function deleteAnnouncement(id: number) {
   getDb().prepare("DELETE FROM announcements WHERE id=?").run(id);
+}
+
+// ---------- 명예의 전당 ----------
+type HallOfFameDbRow = {
+  id: number;
+  year: number;
+  captain_id: number | null;
+  vice_captain_id: number | null;
+  manager_id: number | null;
+  top_scorer_id: number | null;
+  top_assist_id: number | null;
+  clean_sheet_first_id: number | null;
+  overall_first_id: number | null;
+};
+
+function toHallOfFame(r: HallOfFameDbRow): HallOfFameRow {
+  return {
+    id: r.id,
+    year: r.year,
+    captainId: r.captain_id,
+    viceCaptainId: r.vice_captain_id,
+    managerId: r.manager_id,
+    topScorerId: r.top_scorer_id,
+    topAssistId: r.top_assist_id,
+    cleanSheetFirstId: r.clean_sheet_first_id,
+    overallFirstId: r.overall_first_id,
+  };
+}
+
+export function listHallOfFame(): HallOfFameRow[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM hall_of_fame ORDER BY year DESC")
+    .all() as HallOfFameDbRow[];
+  return rows.map(toHallOfFame);
+}
+
+export function upsertHallOfFame(
+  entry: Omit<HallOfFameRow, "id">
+): HallOfFameRow {
+  getDb()
+    .prepare(
+      `INSERT INTO hall_of_fame (year, captain_id, vice_captain_id, manager_id, top_scorer_id, top_assist_id, clean_sheet_first_id, overall_first_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(year) DO UPDATE SET
+         captain_id=excluded.captain_id, vice_captain_id=excluded.vice_captain_id,
+         manager_id=excluded.manager_id, top_scorer_id=excluded.top_scorer_id,
+         top_assist_id=excluded.top_assist_id, clean_sheet_first_id=excluded.clean_sheet_first_id,
+         overall_first_id=excluded.overall_first_id`
+    )
+    .run(
+      entry.year,
+      entry.captainId,
+      entry.viceCaptainId,
+      entry.managerId,
+      entry.topScorerId,
+      entry.topAssistId,
+      entry.cleanSheetFirstId,
+      entry.overallFirstId
+    );
+  const r = getDb()
+    .prepare("SELECT * FROM hall_of_fame WHERE year=?")
+    .get(entry.year) as HallOfFameDbRow;
+  return toHallOfFame(r);
+}
+
+export function deleteHallOfFame(id: number) {
+  getDb().prepare("DELETE FROM hall_of_fame WHERE id=?").run(id);
 }

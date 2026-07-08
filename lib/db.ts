@@ -5,6 +5,7 @@ import type {
   AppUser,
   CommentRow,
   EventItem,
+  HallOfFameRow,
   HistoricalStats,
   Member,
   MvpVoteRow,
@@ -174,4 +175,16 @@ export async function updateAnnouncement(
 }
 export async function deleteAnnouncement(id: number) {
   return usePg ? pg.deleteAnnouncement(id) : sqlite.deleteAnnouncement(id);
+}
+
+export async function listHallOfFame(): Promise<HallOfFameRow[]> {
+  return usePg ? pg.listHallOfFame() : sqlite.listHallOfFame();
+}
+export async function upsertHallOfFame(
+  entry: Omit<HallOfFameRow, "id">
+): Promise<HallOfFameRow> {
+  return usePg ? pg.upsertHallOfFame(entry) : sqlite.upsertHallOfFame(entry);
+}
+export async function deleteHallOfFame(id: number) {
+  return usePg ? pg.deleteHallOfFame(id) : sqlite.deleteHallOfFame(id);
 }

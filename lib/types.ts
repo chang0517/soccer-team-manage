@@ -186,3 +186,17 @@ export interface AnnouncementRow {
   createdAt: string;
   updatedAt: string;
 }
+
+// 명예의 전당: 연도별 주장·부주장·총무와 그 해 득점왕·어시왕·클린시트 1등·종합 1위.
+// 연도당 한 행만 있고(연도 UNIQUE), 값은 전부 멤버 참조(없으면 null).
+export interface HallOfFameRow {
+  id: number;
+  year: number;
+  captainId: number | null;
+  viceCaptainId: number | null;
+  managerId: number | null;
+  topScorerId: number | null;
+  topAssistId: number | null;
+  cleanSheetFirstId: number | null;
+  overallFirstId: number | null;
+}

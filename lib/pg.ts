@@ -5,6 +5,7 @@ import type {
   AppUser,
   CommentRow,
   EventItem,
+  HallOfFameRow,
   HistoricalStats,
   Member,
   MvpVoteRow,
@@ -123,6 +124,17 @@ async function init() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS hall_of_fame (
+      id SERIAL PRIMARY KEY,
+      year INTEGER NOT NULL UNIQUE,
+      captain_id INTEGER,
+      vice_captain_id INTEGER,
+      manager_id INTEGER,
+      top_scorer_id INTEGER,
+      top_assist_id INTEGER,
+      clean_sheet_first_id INTEGER,
+      overall_first_id INTEGER
+    );
   `);
   await pool.query(
     "ALTER TABLE historical_stats ADD COLUMN IF NOT EXISTS bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0"
@@ -136,6 +148,9 @@ async function init() {
     );
   }
   await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS record_log JSONB");
+  await pool.query(
+    "ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER"
+  );
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
@@ -689,4 +704,67 @@ export async function updateAnnouncement(
 export async function deleteAnnouncement(id: number) {
   const pool = await ready();
   await pool.query("DELETE FROM announcements WHERE id=$1", [id]);
+}
+
+// ---------- 명예의 전당 ----------
+function toHallOfFame(r: {
+  id: number;
+  year: number;
+  captain_id: number | null;
+  vice_captain_id: number | null;
+  manager_id: number | null;
+  top_scorer_id: number | null;
+  top_assist_id: number | null;
+  clean_sheet_first_id: number | null;
+  overall_first_id: number | null;
+}): HallOfFameRow {
+  return {
+    id: r.id,
+    year: r.year,
+    captainId: r.captain_id,
+    viceCaptainId: r.vice_captain_id,
+    managerId: r.manager_id,
+    topScorerId: r.top_scorer_id,
+    topAssistId: r.top_assist_id,
+    cleanSheetFirstId: r.clean_sheet_first_id,
+    overallFirstId: r.overall_first_id,
+  };
+}
+
+export async function listHallOfFame(): Promise<HallOfFameRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM hall_of_fame ORDER BY year DESC");
+  return rows.map(toHallOfFame);
+}
+
+export async function upsertHallOfFame(
+  entry: Omit<HallOfFameRow, "id">
+): Promise<HallOfFameRow> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    `INSERT INTO hall_of_fame (year, captain_id, vice_captain_id, manager_id, top_scorer_id, top_assist_id, clean_sheet_first_id, overall_first_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (year) DO UPDATE SET
+       captain_id=EXCLUDED.captain_id, vice_captain_id=EXCLUDED.vice_captain_id,
+       manager_id=EXCLUDED.manager_id, top_scorer_id=EXCLUDED.top_scorer_id,
+       top_assist_id=EXCLUDED.top_assist_id, clean_sheet_first_id=EXCLUDED.clean_sheet_first_id,
+       overall_first_id=EXCLUDED.overall_first_id
+     RETURNING *`,
+    [
+      entry.year,
+      entry.captainId,
+      entry.viceCaptainId,
+      entry.managerId,
+      entry.topScorerId,
+      entry.topAssistId,
+      entry.cleanSheetFirstId,
+      entry.overallFirstId,
+    ]
+  );
+  return toHallOfFame(rows[0]);
+}
+
+export async function deleteHallOfFame(id: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM hall_of_fame WHERE id=$1", [id]);
 }
