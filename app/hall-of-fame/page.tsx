@@ -44,7 +44,7 @@ const AVATAR_COLORS = [
   "bg-rose-500",
   "bg-orange-500",
   "bg-amber-500",
-  "bg-emerald-600",
+  "bg-blue-600",
   "bg-teal-500",
   "bg-sky-500",
   "bg-indigo-500",
@@ -175,7 +175,7 @@ export default function HallOfFamePage() {
 
   return (
     <div className="space-y-5">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-700 p-6 text-white shadow-lg">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 p-6 text-white shadow-lg">
         <div className="pointer-events-none absolute -right-6 -top-6 text-[120px] leading-none opacity-10">
           🏆
         </div>
@@ -184,11 +184,11 @@ export default function HallOfFamePage() {
         </div>
         <div className="relative flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-200">
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">
               Raven FC
             </p>
             <h1 className="mt-1 text-2xl font-extrabold">🏆 명예의 전당</h1>
-            <p className="mt-1 text-sm text-emerald-100">
+            <p className="mt-1 text-sm text-blue-100">
               역대 주장단과 매 시즌 최고의 기록을 새겨둡니다.
             </p>
           </div>
@@ -208,7 +208,7 @@ export default function HallOfFamePage() {
       </div>
 
       {showForm && (
-        <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
           <label className="block text-xs font-semibold text-zinc-500">
             연도
             <input
@@ -242,7 +242,7 @@ export default function HallOfFamePage() {
           <button
             onClick={submit}
             disabled={saving || !form.year.trim()}
-            className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+            className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
           >
             {saving ? "저장 중…" : "저장"}
           </button>
@@ -261,11 +261,11 @@ export default function HallOfFamePage() {
             key={row.id}
             className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
           >
-            <div className="flex items-center justify-between bg-gradient-to-r from-emerald-800 to-emerald-700 px-4 py-3">
+            <div className="flex items-center justify-between bg-gradient-to-r from-blue-800 to-blue-700 px-4 py-3">
               <h2 className="flex items-center gap-2 text-lg font-extrabold text-white">
                 <span className="text-amber-300">✦</span>
                 {row.year}
-                <span className="text-sm font-semibold text-emerald-200">시즌</span>
+                <span className="text-sm font-semibold text-blue-200">시즌</span>
               </h2>
               {isAdmin && (
                 <div className="flex gap-2 text-xs">

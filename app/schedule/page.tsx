@@ -63,7 +63,7 @@ export default function SchedulePage() {
         <span
           className={`rounded-full px-2 py-0.5 text-xs font-bold ${
             e.date >= todayStr()
-              ? "bg-emerald-100 text-emerald-800"
+              ? "bg-blue-100 text-blue-800"
               : "bg-zinc-100 text-zinc-500"
           }`}
         >
@@ -86,7 +86,7 @@ export default function SchedulePage() {
         <span
           className={`text-sm font-bold ${
             e.scored > e.conceded
-              ? "text-emerald-700"
+              ? "text-blue-700"
               : e.scored < e.conceded
                 ? "text-red-600"
                 : "text-zinc-500"
@@ -105,7 +105,7 @@ export default function SchedulePage() {
         {isAdmin && (
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+            className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
           >
             {showForm ? "닫기" : "+ 일정 추가"}
           </button>
@@ -113,7 +113,7 @@ export default function SchedulePage() {
       </div>
 
       {showForm && (
-        <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="text-xs font-semibold text-zinc-500">제목</label>
@@ -171,7 +171,7 @@ export default function SchedulePage() {
           <button
             onClick={submit}
             disabled={saving || !form.title.trim() || !form.date}
-            className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+            className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
           >
             {saving ? "저장 중…" : "일정 저장"}
           </button>

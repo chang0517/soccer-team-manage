@@ -59,7 +59,7 @@ export default function NoticeDetailPage({
 
   return (
     <div className="space-y-4">
-      <Link href="/notice" className="text-sm text-emerald-700">
+      <Link href="/notice" className="text-sm text-blue-700">
         ← 공지사항 목록
       </Link>
 
@@ -77,7 +77,7 @@ export default function NoticeDetailPage({
               <button
                 onClick={save}
                 disabled={saving}
-                className="flex-1 rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                className="flex-1 rounded-xl bg-blue-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
                 저장
               </button>
@@ -97,7 +97,7 @@ export default function NoticeDetailPage({
                 <div className="flex shrink-0 gap-2 text-xs">
                   <button
                     onClick={() => setEditing(true)}
-                    className="text-emerald-700 underline"
+                    className="text-blue-700 underline"
                   >
                     수정
                   </button>

@@ -121,7 +121,7 @@ export default function HomePage() {
     <div className="space-y-6">
       {!user && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm">
-          <Link href="/login" className="font-semibold text-emerald-700">
+          <Link href="/login" className="font-semibold text-blue-700">
             로그인
           </Link>
           하면 투표하고 활동할 수 있어요.
@@ -136,7 +136,7 @@ export default function HomePage() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-bold">다가오는 일정</h2>
-          <Link href="/schedule" className="text-sm text-emerald-700">
+          <Link href="/schedule" className="text-sm text-blue-700">
             전체 보기 →
           </Link>
         </div>
@@ -153,7 +153,7 @@ export default function HomePage() {
             >
               <Link href={`/events/${e.id}`} className="block">
                 <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-800">
                     {dDayLabel(e.date)}
                   </span>
                   <span className="text-xs text-zinc-500">
@@ -192,7 +192,7 @@ export default function HomePage() {
                   {editingId !== e.id && (
                     <button
                       onClick={() => startEditNote(e.id)}
-                      className="text-xs font-semibold text-emerald-700"
+                      className="text-xs font-semibold text-blue-700"
                     >
                       수정
                     </button>
@@ -228,7 +228,7 @@ export default function HomePage() {
                     <button
                       onClick={() => saveNote(e.id)}
                       disabled={noteSavingId === e.id}
-                      className="mt-1 rounded-lg bg-emerald-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
+                      className="mt-1 rounded-lg bg-blue-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
                     >
                       {noteSavingId === e.id ? "저장 중…" : "확인"}
                     </button>
@@ -261,7 +261,7 @@ export default function HomePage() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-bold">시즌 랭킹 TOP 5</h2>
-          <Link href="/ranking" className="text-sm text-emerald-700">
+          <Link href="/ranking" className="text-sm text-blue-700">
             전체 보기 →
           </Link>
         </div>
@@ -280,7 +280,7 @@ export default function HomePage() {
               <span className="text-xs text-zinc-500">
                 ⚽{r.goals} 🎯{r.assists}
               </span>
-              <span className="w-12 text-right text-sm font-bold text-emerald-700">
+              <span className="w-12 text-right text-sm font-bold text-blue-700">
                 {r.total}점
               </span>
             </div>

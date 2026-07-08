@@ -69,7 +69,7 @@ export default function RankingPage() {
             onClick={() => setTab(t.key)}
             className={`rounded-xl py-2 text-sm font-semibold ${
               tab === t.key
-                ? "bg-emerald-700 text-white"
+                ? "bg-blue-700 text-white"
                 : "bg-zinc-100 text-zinc-600"
             }`}
           >
@@ -118,7 +118,7 @@ export default function RankingPage() {
                   <button
                     onClick={() => clickSort(c.key)}
                     className={`inline-flex items-center gap-0.5 font-semibold ${
-                      sortKey === c.key ? "text-emerald-700" : "text-zinc-500"
+                      sortKey === c.key ? "text-blue-700" : "text-zinc-500"
                     }`}
                   >
                     {c.label}
@@ -157,7 +157,7 @@ export default function RankingPage() {
                 <td className="px-2 py-2 text-center">{r.assists}</td>
                 <td className="px-2 py-2 text-center">{r.cleanPts}</td>
                 <td className="px-2 py-2 text-center">{r.mvpCount}</td>
-                <td className="px-3 py-2 text-right font-bold text-emerald-700">
+                <td className="px-3 py-2 text-right font-bold text-blue-700">
                   {r.total}
                 </td>
               </tr>

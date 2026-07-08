@@ -60,14 +60,14 @@ export default function LoginPage() {
         <button
           onClick={submit}
           disabled={loading || !username.trim() || !password}
-          className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
         >
           {loading ? "로그인 중…" : "로그인"}
         </button>
       </div>
       <p className="text-center text-sm text-zinc-500">
         계정이 없나요?{" "}
-        <Link href="/signup" className="font-semibold text-emerald-700">
+        <Link href="/signup" className="font-semibold text-blue-700">
           가입하기
         </Link>
       </p>

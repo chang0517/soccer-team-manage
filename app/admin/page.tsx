@@ -55,7 +55,7 @@ export default function AdminPage() {
     return (
       <div className="space-y-3 pt-10 text-center">
         <p className="text-sm text-zinc-500">운영진만 볼 수 있는 페이지예요.</p>
-        <Link href="/" className="font-semibold text-emerald-700">
+        <Link href="/" className="font-semibold text-blue-700">
           홈으로
         </Link>
       </div>
@@ -160,7 +160,7 @@ export default function AdminPage() {
                   onClick={() => setDraft(u.id, { mode: "link" })}
                   className={`rounded-lg px-3 py-1.5 font-semibold ${
                     draft.mode === "link"
-                      ? "bg-emerald-700 text-white"
+                      ? "bg-blue-700 text-white"
                       : "bg-zinc-100 text-zinc-600"
                   }`}
                 >
@@ -170,7 +170,7 @@ export default function AdminPage() {
                   onClick={() => setDraft(u.id, { mode: "new" })}
                   className={`rounded-lg px-3 py-1.5 font-semibold ${
                     draft.mode === "new"
-                      ? "bg-emerald-700 text-white"
+                      ? "bg-blue-700 text-white"
                       : "bg-zinc-100 text-zinc-600"
                   }`}
                 >
@@ -223,7 +223,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => approve(u)}
                   disabled={busyId === u.id}
-                  className="flex-1 rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                  className="flex-1 rounded-xl bg-blue-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
                 >
                   승인
                 </button>

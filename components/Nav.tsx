@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./useSession";
@@ -32,10 +33,12 @@ export default function Nav() {
 
   return (
     <>
-      <header className="no-print sticky top-0 z-20 border-b border-zinc-200 bg-emerald-900 text-white">
+      <header className="no-print sticky top-0 z-20 border-b border-zinc-200 bg-blue-900 text-white">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl">⚽</span>
+            <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full ring-1 ring-white/30">
+              <Image src="/logo.png" alt="Raven FC" fill sizes="32px" className="scale-110 object-cover" />
+            </span>
             <span className="text-lg font-extrabold tracking-wide">
               RAVEN FC
             </span>
@@ -48,8 +51,8 @@ export default function Nav() {
                   href={t.href}
                   className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
                     isActive(t.href)
-                      ? "bg-emerald-700 text-white"
-                      : "text-emerald-100 hover:bg-emerald-800"
+                      ? "bg-blue-700 text-white"
+                      : "text-blue-100 hover:bg-blue-800"
                   }`}
                 >
                   {t.label}
@@ -60,12 +63,12 @@ export default function Nav() {
               <div className="flex items-center gap-2 text-sm">
                 {user ? (
                   <>
-                    <span className="hidden text-emerald-100 sm:inline">
+                    <span className="hidden text-blue-100 sm:inline">
                       {user.displayName}님
                     </span>
                     <button
                       onClick={doLogout}
-                      className="rounded-lg bg-emerald-800 px-2.5 py-1.5 text-xs font-semibold text-white"
+                      className="rounded-lg bg-blue-800 px-2.5 py-1.5 text-xs font-semibold text-white"
                     >
                       로그아웃
                     </button>
@@ -73,7 +76,7 @@ export default function Nav() {
                 ) : (
                   <Link
                     href="/login"
-                    className="rounded-lg bg-emerald-700 px-2.5 py-1.5 text-xs font-semibold text-white"
+                    className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white"
                   >
                     로그인
                   </Link>
@@ -94,7 +97,7 @@ export default function Nav() {
               href={t.href}
               className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${
                 isActive(t.href)
-                  ? "font-bold text-emerald-700"
+                  ? "font-bold text-blue-700"
                   : "text-zinc-500"
               }`}
             >

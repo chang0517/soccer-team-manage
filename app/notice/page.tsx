@@ -51,7 +51,7 @@ export default function NoticeListPage() {
         {user?.role === "admin" && (
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
+            className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white"
           >
             {showForm ? "닫기" : "+ 공지 작성"}
           </button>
@@ -59,7 +59,7 @@ export default function NoticeListPage() {
       </div>
 
       {showForm && (
-        <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
           <input
             className={input}
             placeholder="제목"
@@ -77,7 +77,7 @@ export default function NoticeListPage() {
           <button
             onClick={submit}
             disabled={saving || !title.trim() || !body.trim()}
-            className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+            className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
           >
             {saving ? "저장 중…" : "게시하기"}
           </button>

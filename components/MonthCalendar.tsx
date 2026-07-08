@@ -89,9 +89,9 @@ export default function MonthCalendar({
               onClick={() => onSelectDate(d)}
               className={`mx-auto flex h-9 w-9 flex-col items-center justify-center rounded-full text-sm ${
                 selected
-                  ? "bg-emerald-700 text-white font-bold"
+                  ? "bg-blue-700 text-white font-bold"
                   : isToday(d)
-                    ? "border border-emerald-600 font-bold text-emerald-700"
+                    ? "border border-blue-600 font-bold text-blue-700"
                     : "text-zinc-700 hover:bg-zinc-100"
               }`}
             >
@@ -99,7 +99,7 @@ export default function MonthCalendar({
               {dayEvents.length > 0 && (
                 <span
                   className={`-mt-0.5 h-1 w-1 rounded-full ${
-                    selected ? "bg-white" : "bg-emerald-600"
+                    selected ? "bg-white" : "bg-blue-600"
                   }`}
                 />
               )}

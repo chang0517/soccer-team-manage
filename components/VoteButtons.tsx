@@ -3,7 +3,7 @@
 import type { VoteStatus } from "@/lib/types";
 
 const OPTIONS: { status: VoteStatus; label: string; on: string }[] = [
-  { status: "attend", label: "참석", on: "bg-emerald-600 text-white border-emerald-600" },
+  { status: "attend", label: "참석", on: "bg-blue-600 text-white border-blue-600" },
   { status: "maybe", label: "미정", on: "bg-amber-500 text-white border-amber-500" },
   { status: "absent", label: "불참", on: "bg-zinc-500 text-white border-zinc-500" },
 ];

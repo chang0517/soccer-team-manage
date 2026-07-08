@@ -53,7 +53,7 @@ export default function SignupPage() {
         <p className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
           {pendingMsg}
         </p>
-        <Link href="/login" className="font-semibold text-emerald-700">
+        <Link href="/login" className="font-semibold text-blue-700">
           로그인 화면으로
         </Link>
       </div>
@@ -99,14 +99,14 @@ export default function SignupPage() {
             password.length < 4 ||
             !displayName.trim()
           }
-          className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
         >
           {loading ? "가입 중…" : "가입 신청"}
         </button>
       </div>
       <p className="text-center text-sm text-zinc-500">
         이미 계정이 있나요?{" "}
-        <Link href="/login" className="font-semibold text-emerald-700">
+        <Link href="/login" className="font-semibold text-blue-700">
           로그인
         </Link>
       </p>

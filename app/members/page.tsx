@@ -95,7 +95,7 @@ export default function MembersPage() {
       </div>
 
       {isAdmin && (
-      <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+      <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
         <p className="text-sm font-bold">멤버 추가</p>
         <div className="grid grid-cols-2 gap-2">
           <input
@@ -127,7 +127,7 @@ export default function MembersPage() {
         <label className="flex items-center gap-2 text-sm text-zinc-600">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-emerald-700"
+            className="h-4 w-4 accent-blue-700"
             checked={draft.isGuest}
             onChange={(e) => setDraft({ ...draft, isGuest: e.target.checked })}
           />
@@ -136,7 +136,7 @@ export default function MembersPage() {
         <button
           onClick={add}
           disabled={!draft.name.trim()}
-          className="w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          className="w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
         >
           추가
         </button>
@@ -175,7 +175,7 @@ export default function MembersPage() {
                 <label className="flex items-center gap-2 text-sm text-zinc-600">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 accent-emerald-700"
+                    className="h-4 w-4 accent-blue-700"
                     checked={editDraft.isGuest}
                     onChange={(e) =>
                       setEditDraft({ ...editDraft, isGuest: e.target.checked })
@@ -186,7 +186,7 @@ export default function MembersPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => saveEdit(m.id)}
-                    className="flex-1 rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white"
+                    className="flex-1 rounded-xl bg-blue-700 py-2 text-sm font-semibold text-white"
                   >
                     저장
                   </button>
@@ -200,7 +200,7 @@ export default function MembersPage() {
               </div>
             ) : (
               <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-800">
                   {m.backNo ?? "–"}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -228,7 +228,7 @@ export default function MembersPage() {
                         isGuest: m.isGuest,
                       });
                     }}
-                    className="text-xs text-emerald-700 underline"
+                    className="text-xs text-blue-700 underline"
                   >
                     수정
                   </button>

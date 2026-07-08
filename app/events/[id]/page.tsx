@@ -527,7 +527,7 @@ export default function EventDetailPage({
     <div className="space-y-6">
       <section className="rounded-2xl border border-zinc-200 bg-white p-4">
         <div className="flex items-center justify-between">
-          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-800">
             {dDayLabel(event.date)}
           </span>
           {user?.role === "admin" && (
@@ -550,7 +550,7 @@ export default function EventDetailPage({
           {event.location && ` · ${event.location}`}
         </p>
         {event.scored != null && event.conceded != null && (
-          <p className="mt-2 text-2xl font-extrabold text-emerald-700">
+          <p className="mt-2 text-2xl font-extrabold text-blue-700">
             {event.scored} : {event.conceded}
             {event.conceded === 0 && (
               <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
@@ -582,7 +582,7 @@ export default function EventDetailPage({
               ? "아직 멤버 프로필과 연결되지 않았어요. 운영진에게 요청해 주세요."
               : "투표하려면 먼저 로그인해 주세요."}{" "}
             {!user && (
-              <Link className="text-emerald-700 underline" href="/login">
+              <Link className="text-blue-700 underline" href="/login">
                 로그인
               </Link>
             )}
@@ -590,7 +590,7 @@ export default function EventDetailPage({
         )}
         <div className="mt-4 space-y-2 text-sm">
           <p>
-            <span className="font-semibold text-emerald-700">참석 {counts.attend}</span>
+            <span className="font-semibold text-blue-700">참석 {counts.attend}</span>
             <span className="ml-2 text-zinc-600">{voterList("attend")}</span>
           </p>
           <p>
@@ -628,7 +628,7 @@ export default function EventDetailPage({
             <button
               onClick={adminAddAttend}
               disabled={!adminAddPick}
-              className="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+              className="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
             >
               참석 추가
             </button>
@@ -663,7 +663,7 @@ export default function EventDetailPage({
               <button
                 onClick={postComment}
                 disabled={commentSaving || !newComment.trim()}
-                className="shrink-0 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+                className="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
               >
                 등록
               </button>
@@ -676,7 +676,7 @@ export default function EventDetailPage({
         <div className="mt-4 border-t border-zinc-100 pt-3">
           <button
             onClick={() => setShowGuestForm((v) => !v)}
-            className="text-sm font-semibold text-emerald-700"
+            className="text-sm font-semibold text-blue-700"
           >
             {showGuestForm ? "용병 추가 닫기" : "+ 용병 추가"}
           </button>
@@ -727,7 +727,7 @@ export default function EventDetailPage({
               <button
                 onClick={addGuest}
                 disabled={addingGuest || !guestForm.name.trim()}
-                className="w-full rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                className="w-full rounded-xl bg-blue-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
                 {addingGuest ? "추가 중…" : "용병 추가 + 이 경기 참석 등록"}
               </button>
@@ -763,7 +763,7 @@ export default function EventDetailPage({
               {canEditSquad && (
                 <button
                   onClick={regenerate}
-                  className="rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white"
+                  className="rounded-xl bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white"
                 >
                   {event.squad ? "다시 생성" : "자동 생성"}
                 </button>
@@ -788,7 +788,7 @@ export default function EventDetailPage({
                     onClick={() => setActiveQuarter(qi)}
                     className={`rounded-xl py-2 text-sm font-semibold ${
                       activeQuarter === qi
-                        ? "bg-emerald-700 text-white"
+                        ? "bg-blue-700 text-white"
                         : "bg-zinc-100 text-zinc-600"
                     }`}
                   >
@@ -797,10 +797,10 @@ export default function EventDetailPage({
                 ))}
               </div>
 
-              <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl bg-emerald-700" style={{ aspectRatio: "3 / 4" }}>
-                <div className="absolute inset-3 rounded-xl border-2 border-emerald-300/50" />
-                <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-300/50" />
-                <div className="absolute left-3 right-3 top-1/2 border-t-2 border-emerald-300/50" />
+              <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-2xl bg-blue-700" style={{ aspectRatio: "3 / 4" }}>
+                <div className="absolute inset-3 rounded-xl border-2 border-blue-300/50" />
+                <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-blue-300/50" />
+                <div className="absolute left-3 right-3 top-1/2 border-t-2 border-blue-300/50" />
                 {FORMATION_SLOTS.map((slot) => {
                   const asg = event.squad!.quarters[activeQuarter].starters.find(
                     (s) => s.slotId === slot.id
@@ -824,11 +824,11 @@ export default function EventDetailPage({
                         {slot.label}
                       </div>
                       {isSplit ? (
-                        <p className="mt-0.5 max-w-20 truncate rounded bg-emerald-950/60 px-1 text-[10px] font-semibold text-white">
+                        <p className="mt-0.5 max-w-20 truncate rounded bg-blue-950/60 px-1 text-[10px] font-semibold text-white">
                           {nameOf(asg?.memberId ?? null)} / {nameOf(asg?.memberId2 ?? null)}
                         </p>
                       ) : (
-                        <p className="mt-0.5 max-w-16 truncate rounded bg-emerald-950/60 px-1 text-[11px] font-semibold text-white">
+                        <p className="mt-0.5 max-w-16 truncate rounded bg-blue-950/60 px-1 text-[11px] font-semibold text-white">
                           {nameOf(asg?.memberId ?? null)}
                         </p>
                       )}
@@ -876,7 +876,7 @@ export default function EventDetailPage({
 
               {quarterCounts.length > 0 && (
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-emerald-700">
+                  <summary className="cursor-pointer text-sm font-semibold text-blue-700">
                     인당 출전 쿼터 수 (전체 {event.squad.quarters.length}쿼터 중)
                   </summary>
                   <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3">
@@ -900,7 +900,7 @@ export default function EventDetailPage({
 
               {canEditSquad && (
               <details className="mt-3">
-                <summary className="cursor-pointer text-sm font-semibold text-emerald-700">
+                <summary className="cursor-pointer text-sm font-semibold text-blue-700">
                   {activeQuarter + 1}쿼터 수동으로 조정하기
                 </summary>
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1003,7 +1003,7 @@ export default function EventDetailPage({
                 onClick={() => setRecordQuarterIdx(qi)}
                 className={`rounded-xl py-2 text-sm font-semibold ${
                   recordQuarterIdx === qi
-                    ? "bg-emerald-700 text-white"
+                    ? "bg-blue-700 text-white"
                     : "bg-zinc-100 text-zinc-600"
                 }`}
               >
@@ -1087,7 +1087,7 @@ export default function EventDetailPage({
             ))}
             <button
               onClick={() => addGoal(recordQuarterIdx)}
-              className="w-full rounded-lg border border-dashed border-zinc-300 py-1.5 text-xs font-semibold text-emerald-700"
+              className="w-full rounded-lg border border-dashed border-zinc-300 py-1.5 text-xs font-semibold text-blue-700"
             >
               + 이 쿼터에 골 추가
             </button>
@@ -1122,12 +1122,12 @@ export default function EventDetailPage({
 
           <button
             onClick={saveRecords}
-            className="mt-4 w-full rounded-xl bg-emerald-700 py-2.5 text-sm font-semibold text-white"
+            className="mt-4 w-full rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white"
           >
             저장하고 게시
           </button>
           {savedMsg && (
-            <p className="mt-2 text-center text-sm font-semibold text-emerald-700">
+            <p className="mt-2 text-center text-sm font-semibold text-blue-700">
               {savedMsg}
             </p>
           )}
@@ -1157,7 +1157,7 @@ export default function EventDetailPage({
             <button
               onClick={voteMvp}
               disabled={!myId || !mvpPick}
-              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               투표
             </button>

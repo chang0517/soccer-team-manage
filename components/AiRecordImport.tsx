@@ -108,7 +108,7 @@ export default function AiRecordImport({
     <div className="mt-4 border-t border-zinc-100 pt-3">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="text-sm font-semibold text-emerald-700"
+        className="text-sm font-semibold text-blue-700"
       >
         {open ? "AI로 기록 입력 닫기" : "+ AI로 기록 입력"}
       </button>
@@ -130,7 +130,7 @@ export default function AiRecordImport({
           <button
             onClick={analyze}
             disabled={loading || !notes.trim()}
-            className="w-full rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            className="w-full rounded-xl bg-blue-700 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {loading ? "분석 중…" : "분석하기"}
           </button>
@@ -228,14 +228,14 @@ export default function AiRecordImport({
 
               <button
                 onClick={apply}
-                className="w-full rounded-xl bg-emerald-700 py-2 text-sm font-semibold text-white"
+                className="w-full rounded-xl bg-blue-700 py-2 text-sm font-semibold text-white"
               >
                 아래 기록 초안에 반영
               </button>
             </div>
           )}
           {appliedMsg && (
-            <p className="text-xs font-semibold text-emerald-700">{appliedMsg}</p>
+            <p className="text-xs font-semibold text-blue-700">{appliedMsg}</p>
           )}
         </div>
       )}
