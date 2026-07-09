@@ -188,3 +188,18 @@ export async function upsertHallOfFame(
 export async function deleteHallOfFame(id: number) {
   return usePg ? pg.deleteHallOfFame(id) : sqlite.deleteHallOfFame(id);
 }
+
+export async function savePushSubscription(sub: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  memberId: number | null;
+}) {
+  return usePg ? pg.savePushSubscription(sub) : sqlite.savePushSubscription(sub);
+}
+export async function getAllPushSubscriptions() {
+  return usePg ? pg.getAllPushSubscriptions() : sqlite.getAllPushSubscriptions();
+}
+export async function deletePushSubscription(endpoint: string) {
+  return usePg ? pg.deletePushSubscription(endpoint) : sqlite.deletePushSubscription(endpoint);
+}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import PushPrompt from "@/components/PushPrompt";
 
 export const metadata: Metadata = {
   title: "Raven FC",
@@ -31,6 +32,7 @@ export default function RootLayout({
         <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:pb-10">
           {children}
         </main>
+        <PushPrompt />
       </body>
     </html>
   );

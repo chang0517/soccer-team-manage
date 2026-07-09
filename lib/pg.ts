@@ -50,7 +50,8 @@ async function init() {
       back_no INTEGER,
       pos1 TEXT NOT NULL DEFAULT 'CB',
       pos2 TEXT NOT NULL DEFAULT 'WB',
-      is_guest BOOLEAN NOT NULL DEFAULT false
+      is_guest BOOLEAN NOT NULL DEFAULT false,
+      phone TEXT
     );
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
@@ -135,6 +136,14 @@ async function init() {
       clean_sheet_first_id INTEGER,
       overall_first_id INTEGER
     );
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      member_id INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
   await pool.query(
     "ALTER TABLE historical_stats ADD COLUMN IF NOT EXISTS bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0"
@@ -142,6 +151,7 @@ async function init() {
   await pool.query(
     "ALTER TABLE members ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false"
   );
+  await pool.query("ALTER TABLE members ADD COLUMN IF NOT EXISTS phone TEXT");
   for (const col of ["duty_offense", "duty_defense", "water_duty", "icebox_duty"]) {
     await pool.query(
       `ALTER TABLE events ADD COLUMN IF NOT EXISTS ${col} TEXT NOT NULL DEFAULT ''`
@@ -175,6 +185,7 @@ type MemberDbRow = {
   pos1: PosGroup;
   pos2: PosGroup;
   is_guest: boolean;
+  phone: string | null;
 };
 
 function toMember(r: MemberDbRow): Member {
@@ -185,6 +196,7 @@ function toMember(r: MemberDbRow): Member {
     pos1: r.pos1,
     pos2: r.pos2,
     isGuest: !!r.is_guest,
+    phone: r.phone,
   };
 }
 
@@ -197,8 +209,8 @@ export async function listMembers(): Promise<Member[]> {
 export async function createMember(m: Omit<Member, "id">): Promise<Member> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-    [m.name, m.backNo, m.pos1, m.pos2, !!m.isGuest]
+    "INSERT INTO members (name, back_no, pos1, pos2, is_guest, phone) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    [m.name, m.backNo, m.pos1, m.pos2, !!m.isGuest, m.phone ?? null]
   );
   return { id: rows[0].id, ...m };
 }
@@ -206,8 +218,8 @@ export async function createMember(m: Omit<Member, "id">): Promise<Member> {
 export async function updateMember(id: number, m: Omit<Member, "id">) {
   const pool = await ready();
   await pool.query(
-    "UPDATE members SET name=$1, back_no=$2, pos1=$3, pos2=$4, is_guest=$5 WHERE id=$6",
-    [m.name, m.backNo, m.pos1, m.pos2, !!m.isGuest, id]
+    "UPDATE members SET name=$1, back_no=$2, pos1=$3, pos2=$4, is_guest=$5, phone=$6 WHERE id=$7",
+    [m.name, m.backNo, m.pos1, m.pos2, !!m.isGuest, m.phone ?? null, id]
   );
 }
 
@@ -767,4 +779,33 @@ export async function upsertHallOfFame(
 export async function deleteHallOfFame(id: number) {
   const pool = await ready();
   await pool.query("DELETE FROM hall_of_fame WHERE id=$1", [id]);
+}
+
+// ---------- 웹 푸시 구독 ----------
+export async function savePushSubscription(sub: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  memberId: number | null;
+}) {
+  const pool = await ready();
+  await pool.query(
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth, member_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (endpoint) DO UPDATE SET p256dh=EXCLUDED.p256dh, auth=EXCLUDED.auth, member_id=EXCLUDED.member_id`,
+    [sub.endpoint, sub.p256dh, sub.auth, sub.memberId]
+  );
+}
+
+export async function getAllPushSubscriptions(): Promise<
+  { endpoint: string; p256dh: string; auth: string }[]
+> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT endpoint, p256dh, auth FROM push_subscriptions");
+  return rows;
+}
+
+export async function deletePushSubscription(endpoint: string) {
+  const pool = await ready();
+  await pool.query("DELETE FROM push_subscriptions WHERE endpoint=$1", [endpoint]);
 }

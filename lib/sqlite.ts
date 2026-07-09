@@ -34,7 +34,8 @@ function createDb(): Database.Database {
       back_no INTEGER,
       pos1 TEXT NOT NULL DEFAULT 'CB',
       pos2 TEXT NOT NULL DEFAULT 'WB',
-      is_guest INTEGER NOT NULL DEFAULT 0
+      is_guest INTEGER NOT NULL DEFAULT 0,
+      phone TEXT
     );
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,10 +120,21 @@ function createDb(): Database.Database {
       clean_sheet_first_id INTEGER,
       overall_first_id INTEGER
     );
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      member_id INTEGER,
+      created_at TEXT NOT NULL
+    );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
   if (!memberCols.some((c) => c.name === "is_guest")) {
     db.exec("ALTER TABLE members ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!memberCols.some((c) => c.name === "phone")) {
+    db.exec("ALTER TABLE members ADD COLUMN phone TEXT");
   }
   const eventCols = db.prepare("PRAGMA table_info(events)").all() as { name: string }[];
   for (const col of ["duty_offense", "duty_defense", "water_duty", "icebox_duty"]) {
@@ -172,6 +184,7 @@ type MemberDbRow = {
   pos1: PosGroup;
   pos2: PosGroup;
   is_guest: number;
+  phone: string | null;
 };
 
 function toMember(r: MemberDbRow): Member {
@@ -182,6 +195,7 @@ function toMember(r: MemberDbRow): Member {
     pos1: r.pos1,
     pos2: r.pos2,
     isGuest: !!r.is_guest,
+    phone: r.phone,
   };
 }
 
@@ -195,18 +209,18 @@ export function listMembers(): Member[] {
 export function createMember(m: Omit<Member, "id">): Member {
   const r = getDb()
     .prepare(
-      "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO members (name, back_no, pos1, pos2, is_guest, phone) VALUES (?, ?, ?, ?, ?, ?)"
     )
-    .run(m.name, m.backNo, m.pos1, m.pos2, m.isGuest ? 1 : 0);
+    .run(m.name, m.backNo, m.pos1, m.pos2, m.isGuest ? 1 : 0, m.phone ?? null);
   return { id: Number(r.lastInsertRowid), ...m };
 }
 
 export function updateMember(id: number, m: Omit<Member, "id">) {
   getDb()
     .prepare(
-      "UPDATE members SET name=?, back_no=?, pos1=?, pos2=?, is_guest=? WHERE id=?"
+      "UPDATE members SET name=?, back_no=?, pos1=?, pos2=?, is_guest=?, phone=? WHERE id=?"
     )
-    .run(m.name, m.backNo, m.pos1, m.pos2, m.isGuest ? 1 : 0, id);
+    .run(m.name, m.backNo, m.pos1, m.pos2, m.isGuest ? 1 : 0, m.phone ?? null, id);
 }
 
 export function deleteMember(id: number) {
@@ -763,4 +777,34 @@ export function upsertHallOfFame(
 
 export function deleteHallOfFame(id: number) {
   getDb().prepare("DELETE FROM hall_of_fame WHERE id=?").run(id);
+}
+
+// ---------- 웹 푸시 구독 ----------
+export function savePushSubscription(sub: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  memberId: number | null;
+}) {
+  getDb()
+    .prepare(
+      `INSERT INTO push_subscriptions (endpoint, p256dh, auth, member_id, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth, member_id=excluded.member_id`
+    )
+    .run(sub.endpoint, sub.p256dh, sub.auth, sub.memberId, new Date().toISOString());
+}
+
+export function getAllPushSubscriptions(): {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}[] {
+  return getDb()
+    .prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions")
+    .all() as { endpoint: string; p256dh: string; auth: string }[];
+}
+
+export function deletePushSubscription(endpoint: string) {
+  getDb().prepare("DELETE FROM push_subscriptions WHERE endpoint=?").run(endpoint);
 }

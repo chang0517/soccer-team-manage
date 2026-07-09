@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ravenfc.finenotices</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/hyunmin/raven-fc/fine-notices/send-fine-notices.mjs</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>RAVEN_BASE_URL</key>
+    <string>https://raven-fc.vercel.app</string>
+    <key>FINE_NOTICE_SECRET</key>
+    <string>__FINE_NOTICE_SECRET__</string>
+    <key>DRY_RUN</key>
+    <string>true</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Day</key>
+    <integer>1</integer>
+    <key>Hour</key>
+    <integer>0</integer>
+    <key>Minute</key>
+    <integer>1</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/fine-notices.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/fine-notices.error.log</string>
+</dict>
+</plist>

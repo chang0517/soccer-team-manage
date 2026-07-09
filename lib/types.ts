@@ -47,6 +47,8 @@ export interface Member {
   pos1: PosGroup;
   pos2: PosGroup;
   isGuest: boolean;
+  // 벌금 문자 발송 등에 쓰는 연락처. 없으면 null(발송 대상에서 자동 제외).
+  phone: string | null;
 }
 
 export type UserRole = "admin" | "player";

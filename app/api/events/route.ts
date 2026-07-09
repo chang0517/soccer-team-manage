@@ -1,5 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { createEvent, listEvents } from "@/lib/db";
+import { formatDate } from "@/lib/format";
+import { sendPushToAll } from "@/lib/push";
 
 export async function GET() {
   return Response.json(await listEvents());
@@ -30,5 +32,15 @@ export async function POST(request: Request) {
     iceboxDuty: body.iceboxDuty ?? "",
     recordLog: null,
   });
+
+  if (event.type === "match") {
+    const opponentPart = event.opponent ? ` vs ${event.opponent}` : "";
+    await sendPushToAll({
+      title: "⚽ 새 경기 일정이 등록됐어요",
+      body: `${event.title}${opponentPart} · ${formatDate(event.date, event.time)} — 참석 투표를 해주세요!`,
+      url: `/events/${event.id}`,
+    });
+  }
+
   return Response.json(event, { status: 201 });
 }

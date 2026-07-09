@@ -18,6 +18,7 @@ export async function PATCH(
     pos1: body.pos1,
     pos2: body.pos2,
     isGuest: !!body.isGuest,
+    phone: body.phone?.trim() || null,
   });
   return Response.json({ ok: true });
 }

@@ -11,9 +11,17 @@ interface Draft {
   pos1: PosGroup;
   pos2: PosGroup;
   isGuest: boolean;
+  phone: string;
 }
 
-const EMPTY: Draft = { name: "", backNo: "", pos1: "CB", pos2: "WB", isGuest: false };
+const EMPTY: Draft = {
+  name: "",
+  backNo: "",
+  pos1: "CB",
+  pos2: "WB",
+  isGuest: false,
+  phone: "",
+};
 
 export default function MembersPage() {
   const { user } = useSession();
@@ -40,6 +48,7 @@ export default function MembersPage() {
         pos1: draft.pos1,
         pos2: draft.pos2,
         isGuest: draft.isGuest,
+        phone: draft.phone,
       }),
     });
     setDraft(EMPTY);
@@ -56,6 +65,7 @@ export default function MembersPage() {
         pos1: editDraft.pos1,
         pos2: editDraft.pos2,
         isGuest: editDraft.isGuest,
+        phone: editDraft.phone,
       }),
     });
     setEditingId(null);
@@ -111,6 +121,13 @@ export default function MembersPage() {
             value={draft.backNo}
             onChange={(e) => setDraft({ ...draft, backNo: e.target.value })}
           />
+          <input
+            className={input}
+            placeholder="전화번호 (선택)"
+            type="tel"
+            value={draft.phone}
+            onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+          />
           <div>
             <label className="text-xs font-semibold text-zinc-500">
               1순위 포지션
@@ -165,6 +182,15 @@ export default function MembersPage() {
                       setEditDraft({ ...editDraft, backNo: e.target.value })
                     }
                   />
+                  <input
+                    className={input}
+                    type="tel"
+                    placeholder="전화번호"
+                    value={editDraft.phone}
+                    onChange={(e) =>
+                      setEditDraft({ ...editDraft, phone: e.target.value })
+                    }
+                  />
                   {posSelect(editDraft.pos1, (v) =>
                     setEditDraft({ ...editDraft, pos1: v })
                   )}
@@ -215,6 +241,9 @@ export default function MembersPage() {
                   <p className="text-xs text-zinc-500">
                     1순위 {POS_LABELS[m.pos1]} · 2순위 {POS_LABELS[m.pos2]}
                   </p>
+                  {(isAdmin || user?.memberId === m.id) && m.phone && (
+                    <p className="text-xs text-zinc-400">{m.phone}</p>
+                  )}
                 </div>
                 {(isAdmin || user?.memberId === m.id) && (
                   <button
@@ -226,6 +255,7 @@ export default function MembersPage() {
                         pos1: m.pos1,
                         pos2: m.pos2,
                         isGuest: m.isGuest,
+                        phone: m.phone ?? "",
                       });
                     }}
                     className="text-xs text-blue-700 underline"

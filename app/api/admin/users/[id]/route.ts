@@ -26,6 +26,7 @@ export async function POST(
         pos1: body.newMember.pos1 ?? "CB",
         pos2: body.newMember.pos2 ?? "WB",
         isGuest: false,
+        phone: null,
       });
       memberId = created.id;
     }
