@@ -6,6 +6,18 @@
 정식 멤버(용병 제외) 목록을 가져온 다음, 전화번호가 등록된 사람에게
 Messages.app(iMessage 우선, 안 되면 SMS)으로 정해진 벌금 안내 문구를 보낸다.
 
+## 현재 상태: 운영 중 (2026-07-11부터 DRY_RUN=false)
+
+맥미니 ↔ 아이폰 문자 전달(Text Message Forwarding) 연동 문제를 해결하고
+23명 전원 실제 수신까지 확인한 뒤 `~/Library/LaunchAgents/com.ravenfc.finenotices.plist`의
+`DRY_RUN`을 `false`로 바꿔서 **실제 발송이 켜진 상태**다. 매월 1일 00:01에
+자동으로 그 달 미투표자에게 진짜 벌금 문자가 나간다.
+
+저장소에 커밋된 `com.ravenfc.finenotices.plist` 템플릿 자체는 안전을 위해
+`DRY_RUN=true`로 유지한다 — 나중에 맥을 교체하거나 재설치할 때 실수로
+바로 실발송되지 않도록 하는 안전장치다. 재설치 후 다시 운영 상태로
+켜려면 아래 "안전장치" 섹션대로 검증 후 `DRY_RUN=false`로 바꿔야 한다.
+
 ## 안전장치: DRY_RUN
 
 `com.ravenfc.finenotices.plist`의 `DRY_RUN`이 기본값 `true`로 설치돼 있다.
