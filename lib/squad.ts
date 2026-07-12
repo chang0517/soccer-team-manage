@@ -76,30 +76,41 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
+/** 포지션(PosGroup)이 속한 슬롯 카테고리(수비/미드필더/공격/GK). */
+export function categoryOf(pos: PosGroup): SlotCategory {
+  if (pos === "GK") return "GK";
+  if (pos === "CB" || pos === "WB") return "DF";
+  if (pos === "DM" || pos === "AM") return "MF";
+  return "FW"; // WG, ST
+}
+
 /**
- * 쿼터 하나의 스쿼드를 채운다. 누가 뛸지부터 정하고(이번 경기에서 지금까지
- * 덜 뛴 사람 순서로 정원만큼 우선 선발 — 인당 쿼터 수가 고르게 나오도록
- * 보장하는 핵심 로직), 그다음 그 11명을 포지션 선호도에 맞게 슬롯에
- * 배치한다: 1차 1순위 포지션, 2차 2순위 포지션, 3차 남는 사람 아무 자리나.
- * 같은 덜 뛴 정도끼리는 매번 같은 이름이 먼저 뽑히지 않도록 무작위로 섞는다.
+ * 쿼터 하나의 스쿼드를 슬롯 단위로 채운다. 같은 카테고리(수비/미드필더/공격)
+ * 안에서만 배치가 이루어지도록 고정한다 — 수비수가 공격 슬롯에, 공격수가
+ * 수비 슬롯에 들어가는 일이 없다: 1차 1순위 포지션이 슬롯과 정확히
+ * 일치하는 사람, 2차 2순위 포지션이 일치하는 사람, 3차 카테고리만
+ * 같으면(예: CB가 WB 자리, AM이 DM 자리) 허용. 카테고리를 벗어나는
+ * 배치는 하지 않는다 — 해당 카테고리에 뛸 사람이 부족하면 슬롯은 빈다.
+ * 우선순위는 그 카테고리에서 지금까지 덜 뛴 사람 순 — 그래서 포지션마다
+ * 쿼터 수는 달라도 "같은 포지션끼리는" 고르게 나뉜다.
  */
 function fillQuarter(
   attendees: Member[],
-  playCount: Map<number, number>
+  catPlayCount: Map<string, number>
 ): QuarterSquad {
-  const bySchedulePriority = shuffle(attendees).sort(
-    (a, b) => (playCount.get(a.id) ?? 0) - (playCount.get(b.id) ?? 0)
-  );
-  const starterPool = bySchedulePriority.slice(0, FORMATION_SLOTS.length);
-
   const assigned = new Map<string, number>();
   const used = new Set<number>();
+  const key = (memberId: number, cat: SlotCategory) => `${memberId}:${cat}`;
+  const countFor = (memberId: number, cat: SlotCategory) =>
+    catPlayCount.get(key(memberId, cat)) ?? 0;
 
   const fill = (matches: (m: Member, slot: SlotDef) => boolean) => {
     for (const slot of shuffle(FORMATION_SLOTS)) {
       if (assigned.has(slot.id)) continue;
-      const candidates = starterPool.filter(
-        (m) => !used.has(m.id) && matches(m, slot)
+      const candidates = shuffle(
+        attendees.filter((m) => !used.has(m.id) && matches(m, slot))
+      ).sort(
+        (a, b) => countFor(a.id, slot.category) - countFor(b.id, slot.category)
       );
       const pick = candidates[0];
       if (pick) {
@@ -109,11 +120,25 @@ function fillQuarter(
     }
   };
 
-  fill((m, slot) => slot.accepts.includes(m.pos1));
-  fill((m, slot) => slot.accepts.includes(m.pos2));
-  fill(() => true);
+  // slot.accepts는 겸업 조합(예: LW/RW가 WG·AM 겸용)을 허용하지만, 카테고리
+  // 자체를 넘나드는 겸업(AM=미드필더가 LW/RW=공격 자리에 들어가는 것)은
+  // 자동생성에서는 막는다 — 그래서 매 패스마다 카테고리 일치까지 같이 본다.
+  fill(
+    (m, slot) => slot.accepts.includes(m.pos1) && categoryOf(m.pos1) === slot.category
+  );
+  fill(
+    (m, slot) => slot.accepts.includes(m.pos2) && categoryOf(m.pos2) === slot.category
+  );
+  fill(
+    (m, slot) =>
+      categoryOf(m.pos1) === slot.category || categoryOf(m.pos2) === slot.category
+  );
 
-  for (const id of used) playCount.set(id, (playCount.get(id) ?? 0) + 1);
+  for (const [slotId, memberId] of assigned) {
+    const slot = FORMATION_SLOTS.find((s) => s.id === slotId)!;
+    const k = key(memberId, slot.category);
+    catPlayCount.set(k, (catPlayCount.get(k) ?? 0) + 1);
+  }
 
   return {
     starters: FORMATION_SLOTS.map((s) => ({
@@ -126,13 +151,14 @@ function fillQuarter(
 
 /**
  * 참석자를 포지션 선호도 기반으로 4쿼터 각각 독립된 스쿼드로 배치한다.
- * 쿼터가 진행될수록 아직 덜 뛴 참석자를 우선 배치해 출전 기회를 고르게 나눈다.
+ * 카테고리(수비/미드필더/공격)별로 출전 횟수를 따로 세어, 쿼터가
+ * 진행될수록 그 카테고리에서 아직 덜 뛴 참석자를 우선 배치한다.
  */
 export function generateSquad(attendees: Member[]): SquadData {
-  const playCount = new Map<number, number>(attendees.map((m) => [m.id, 0]));
+  const catPlayCount = new Map<string, number>();
   const quarters: QuarterSquad[] = [];
   for (let q = 0; q < QUARTER_COUNT; q++) {
-    quarters.push(fillQuarter(attendees, playCount));
+    quarters.push(fillQuarter(attendees, catPlayCount));
   }
   return { quarters, generatedAt: new Date().toISOString() };
 }

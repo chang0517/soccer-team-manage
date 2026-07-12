@@ -152,6 +152,8 @@ export default function EventDetailPage({
   const nonVoters = members.filter(
     (m) => !votes.some((v) => v.memberId === m.id)
   );
+  const statusOf = (memberId: number): VoteStatus | null =>
+    votes.find((v) => v.memberId === memberId)?.status ?? null;
   const voteClosed = isVotingClosed(daysUntil(event.date), counts.attend);
   const isSquadLocked = !!event.squad?.confirmed;
   const canEditSquad = !isSquadLocked || isAdmin;
@@ -266,6 +268,15 @@ export default function EventDetailPage({
       body: JSON.stringify({ memberId: Number(adminAddPick), status: "attend" }),
     });
     setAdminAddPick("");
+    load();
+  };
+
+  const adminSetVote = async (memberId: number, status: VoteStatus) => {
+    await fetch(`/api/events/${id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, status }),
+    });
     load();
   };
 
@@ -609,29 +620,81 @@ export default function EventDetailPage({
         </div>
 
         {isAdmin && (
-          <div className="mt-4 flex items-center gap-2 border-t border-zinc-100 pt-3">
-            <select
-              className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-              value={adminAddPick}
-              onChange={(e) => setAdminAddPick(e.target.value)}
-            >
-              <option value="">참석으로 직접 추가할 멤버 선택</option>
-              {members
-                .filter((m) => !attendIds.includes(m.id))
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                    {m.isGuest ? " · 용병" : ""}
-                  </option>
-                ))}
-            </select>
-            <button
-              onClick={adminAddAttend}
-              disabled={!adminAddPick}
-              className="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              참석 추가
-            </button>
+          <div className="mt-4 border-t border-zinc-100 pt-3">
+            <div className="flex items-center gap-2">
+              <select
+                className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                value={adminAddPick}
+                onChange={(e) => setAdminAddPick(e.target.value)}
+              >
+                <option value="">참석으로 직접 추가할 멤버 선택</option>
+                {members
+                  .filter((m) => !attendIds.includes(m.id))
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.isGuest ? " · 용병" : ""}
+                    </option>
+                  ))}
+              </select>
+              <button
+                onClick={adminAddAttend}
+                disabled={!adminAddPick}
+                className="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                참석 추가
+              </button>
+            </div>
+
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm font-semibold text-blue-700">
+                운영진: 전체 인원 참석 관리 (투표 마감 후에도 변경 가능)
+              </summary>
+              <div className="mt-2 max-h-96 space-y-1 overflow-y-auto rounded-lg border border-zinc-100 p-2">
+                {members
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+                  .map((m) => {
+                    const st = statusOf(m.id);
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between gap-2 py-1"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-sm">
+                          {m.name}
+                          {m.isGuest ? " · 용병" : ""}
+                        </span>
+                        <div className="flex shrink-0 gap-1">
+                          {(
+                            [
+                              ["attend", "참석"],
+                              ["maybe", "미정"],
+                              ["absent", "불참"],
+                            ] as [VoteStatus, string][]
+                          ).map(([status, label]) => (
+                            <button
+                              key={status}
+                              onClick={() => adminSetVote(m.id, status)}
+                              className={`rounded-lg px-2 py-1 text-xs font-semibold ${
+                                st === status
+                                  ? status === "attend"
+                                    ? "bg-blue-700 text-white"
+                                    : status === "maybe"
+                                      ? "bg-amber-500 text-white"
+                                      : "bg-zinc-500 text-white"
+                                  : "bg-zinc-100 text-zinc-600"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </details>
           </div>
         )}
 
