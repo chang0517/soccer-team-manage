@@ -5,6 +5,7 @@ import Link from "next/link";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
+import { currentSeason } from "@/lib/season";
 import type { EventItem, RankingRow, VoteRow, VoteStatus } from "@/lib/types";
 
 const DUTY_FIELDS: { key: keyof DutyDraft; label: string }[] = [
@@ -47,7 +48,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/ranking").then((r) => r.json()).then(setRanking);
+    fetch(`/api/ranking?season=${currentSeason()}`).then((r) => r.json()).then(setRanking);
     fetch("/api/events")
       .then((r) => r.json())
       .then((evs: EventItem[]) => {
@@ -260,7 +261,7 @@ export default function HomePage() {
 
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-base font-bold">시즌 랭킹 TOP 5</h2>
+          <h2 className="text-base font-bold">이번 시즌 랭킹 TOP 5</h2>
           <Link href="/ranking" className="text-sm text-blue-700">
             전체 보기 →
           </Link>

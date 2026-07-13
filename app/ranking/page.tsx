@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PosCategory, RankingRow } from "@/lib/types";
 import { POS_CATEGORY, POS_CATEGORY_LABELS } from "@/lib/types";
+import { seasonLabel } from "@/lib/season";
 
 const TABS: { key: PosCategory | "ALL"; label: string }[] = [
   { key: "ALL", label: "전체" },
@@ -22,15 +23,24 @@ const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "total", label: "총점" },
 ];
 
+const ALL_TIME = "ALL_TIME";
+
 export default function RankingPage() {
   const [rows, setRows] = useState<RankingRow[]>([]);
+  const [seasons, setSeasons] = useState<number[]>([]);
+  const [season, setSeason] = useState<number | typeof ALL_TIME>(ALL_TIME);
   const [tab, setTab] = useState<PosCategory | "ALL">("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
-    fetch("/api/ranking").then((r) => r.json()).then(setRows);
+    fetch("/api/ranking/seasons").then((r) => r.json()).then(setSeasons);
   }, []);
+
+  useEffect(() => {
+    const qs = season === ALL_TIME ? "" : `?season=${season}`;
+    fetch(`/api/ranking${qs}`).then((r) => r.json()).then(setRows);
+  }, [season]);
 
   const mvpRanking = rows
     .filter((r) => r.mvpCount > 0)
@@ -61,6 +71,28 @@ export default function RankingPage() {
         출전 1.5점 · 골 1.4점 · 어시스트 1.25점 · 클린시트 시 GK·센터백·윙백
         1.25점, 수비형 미드필더 0.625점
       </p>
+
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => setSeason(ALL_TIME)}
+          className={`rounded-xl px-3 py-1.5 text-sm font-semibold ${
+            season === ALL_TIME ? "bg-blue-900 text-white" : "bg-zinc-100 text-zinc-600"
+          }`}
+        >
+          전체
+        </button>
+        {seasons.map((s) => (
+          <button
+            key={s}
+            onClick={() => setSeason(s)}
+            className={`rounded-xl px-3 py-1.5 text-sm font-semibold ${
+              season === s ? "bg-blue-900 text-white" : "bg-zinc-100 text-zinc-600"
+            }`}
+          >
+            {seasonLabel(s)}
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-4 gap-1.5">
         {TABS.map((t) => (

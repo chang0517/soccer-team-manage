@@ -1,3 +1,4 @@
+import { seasonOf } from "./season";
 import type {
   EventItem,
   HistoricalStats,
@@ -105,19 +106,31 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
  * 점수 규칙: 출전 1.5점, 골 1.4점, 어시스트 1.25점.
  * 무실점(클린시트) 경기에 출전한 GK·센터백·윙백은 1.25점, 수미는 0.625점.
  * MVP 선정 횟수는 총점에는 반영하지 않고 별도로 집계한다.
- * historical(과거 스프레드시트 누적 기록)이 있으면 기준치로 더한다.
+ * historical(과거 스프레드시트 누적 기록)이 있으면 기준치로 더한다 —
+ * 단, 특정 시즌만 볼 때는 그 이전 시즌들의 뭉뚱그려진 누적치라 포함하지
+ * 않고, "전체"(season=null)를 볼 때만 기준치로 더한다.
+ * season을 지정하면 그 시즌(매년 12월 15일~다음해 12월 14일)의 경기·
+ * 기록만으로 계산하고, null(기본값)이면 역대 전체를 합산한다.
  */
 export function computeRanking(
   members: Member[],
   events: EventItem[],
   records: RecordRow[],
   mvpVotes: MvpVoteRow[] = [],
-  historical: HistoricalStats[] = []
+  historical: HistoricalStats[] = [],
+  season: number | null = null
 ): RankingRow[] {
-  const eventById = new Map(events.map((e) => [e.id, e]));
-  const mvpCounts = computeMvpCounts(mvpVotes);
-  const streaks = computeStreaks(events, records);
-  const historicalById = new Map(historical.map((h) => [h.memberId, h]));
+  const scopedEvents =
+    season == null ? events : events.filter((e) => seasonOf(e.date) === season);
+  const scopedEventIds = new Set(scopedEvents.map((e) => e.id));
+  const scopedRecords = records.filter((r) => scopedEventIds.has(r.eventId));
+  const scopedMvpVotes = mvpVotes.filter((v) => scopedEventIds.has(v.eventId));
+
+  const eventById = new Map(scopedEvents.map((e) => [e.id, e]));
+  const mvpCounts = computeMvpCounts(scopedMvpVotes);
+  const streaks = computeStreaks(scopedEvents, scopedRecords);
+  const historicalById =
+    season == null ? new Map(historical.map((h) => [h.memberId, h])) : new Map();
   const rows = new Map<number, RankingRow>(
     members.map((m) => {
       const h = historicalById.get(m.id);
@@ -138,7 +151,7 @@ export function computeRanking(
     })
   );
 
-  for (const r of records) {
+  for (const r of scopedRecords) {
     const row = rows.get(r.memberId);
     if (!row) continue;
     const ev = eventById.get(r.eventId);
