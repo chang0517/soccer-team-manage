@@ -15,12 +15,13 @@ import {
   slotDisplayLabel,
   slotPositionFor,
 } from "@/lib/squad";
-import { POS_GROUPS } from "@/lib/types";
+import { POS_CATEGORY, POS_CATEGORY_LABELS, POS_GROUPS } from "@/lib/types";
 import type {
   CommentRow,
   EventItem,
   Member,
   MvpVoteRow,
+  PosCategory,
   PosGroup,
   QuarterRecordEntry,
   RecordRow,
@@ -28,6 +29,8 @@ import type {
   VoteRow,
   VoteStatus,
 } from "@/lib/types";
+
+const CATEGORY_ORDER: PosCategory[] = ["ATT", "MID", "DEF"];
 
 interface GoalEntryDraft {
   key: string;
@@ -521,15 +524,27 @@ export default function EventDetailPage({
   const nameOf = (mid: number | null) =>
     mid != null ? (memberById.get(mid)?.name ?? "?") : "미정";
 
-  const voterList = (status: VoteStatus) =>
-    votes
-      .filter((v) => v.status === status)
-      .map((v) => {
-        const m = memberById.get(v.memberId);
-        return m ? `${m.name}${m.isGuest ? "(용병)" : ""}` : null;
-      })
-      .filter(Boolean)
-      .join(", ");
+  // 스쿼드를 짤 때 공격/미드필더/수비 인원을 한눈에 보려고 포지션(1순위)
+  // 카테고리별로 묶어서 보여준다.
+  const groupedByCategory = (memberIds: number[]) => {
+    const byCat = new Map<PosCategory, string[]>();
+    for (const mid of memberIds) {
+      const m = memberById.get(mid);
+      if (!m) continue;
+      const cat = POS_CATEGORY[m.pos1];
+      const list = byCat.get(cat) ?? [];
+      list.push(`${m.name}${m.isGuest ? "(용병)" : ""}`);
+      byCat.set(cat, list);
+    }
+    return CATEGORY_ORDER.filter((c) => (byCat.get(c)?.length ?? 0) > 0).map((c) => ({
+      cat: c,
+      label: POS_CATEGORY_LABELS[c],
+      names: byCat.get(c)!,
+    }));
+  };
+
+  const groupedVoters = (status: VoteStatus) =>
+    groupedByCategory(votes.filter((v) => v.status === status).map((v) => v.memberId));
 
   const numInput =
     "w-12 rounded-lg border border-zinc-300 bg-white px-1 py-1 text-center text-sm";
@@ -599,19 +614,30 @@ export default function EventDetailPage({
             )}
           </p>
         )}
-        <div className="mt-4 space-y-2 text-sm">
-          <p>
-            <span className="font-semibold text-blue-700">참석 {counts.attend}</span>
-            <span className="ml-2 text-zinc-600">{voterList("attend")}</span>
-          </p>
-          <p>
-            <span className="font-semibold text-amber-600">미정 {counts.maybe}</span>
-            <span className="ml-2 text-zinc-600">{voterList("maybe")}</span>
-          </p>
-          <p>
-            <span className="font-semibold text-zinc-500">불참 {counts.absent}</span>
-            <span className="ml-2 text-zinc-600">{voterList("absent")}</span>
-          </p>
+        <div className="mt-4 space-y-3 text-sm">
+          {(
+            [
+              ["attend", "참석", "text-blue-700"],
+              ["maybe", "미정", "text-amber-600"],
+              ["absent", "불참", "text-zinc-500"],
+            ] as [VoteStatus, string, string][]
+          ).map(([status, label, colorClass]) => (
+            <div key={status}>
+              <span className={`font-semibold ${colorClass}`}>
+                {label} {counts[status]}
+              </span>
+              <div className="mt-1 space-y-0.5">
+                {groupedVoters(status).map((g) => (
+                  <p key={g.cat} className="text-zinc-600">
+                    <span className="font-semibold text-zinc-500">
+                      {g.label} {g.names.length}
+                    </span>{" "}
+                    {g.names.join(", ")}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ))}
           {nonVoters.length > 0 && (
             <p className="text-xs text-zinc-400">
               미투표 {nonVoters.length}명: {nonVoters.map((m) => m.name).join(", ")}
@@ -942,18 +968,34 @@ export default function EventDetailPage({
                   <summary className="cursor-pointer text-sm font-semibold text-blue-700">
                     인당 출전 쿼터 수 (전체 {event.squad.quarters.length}쿼터 중)
                   </summary>
-                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3">
-                    {quarterCounts.map(({ memberId, count }) => {
-                      const m = memberById.get(memberId);
+                  <div className="mt-2 space-y-3">
+                    {CATEGORY_ORDER.map((cat) => {
+                      const rows = quarterCounts.filter(({ memberId }) => {
+                        const m = memberById.get(memberId);
+                        return m && POS_CATEGORY[m.pos1] === cat;
+                      });
+                      if (rows.length === 0) return null;
                       return (
-                        <div key={memberId} className="flex justify-between">
-                          <span>
-                            {m?.name ?? "?"}
-                            {m?.isGuest ? " · 용병" : ""}
-                          </span>
-                          <span className="font-semibold text-zinc-500">
-                            {count}쿼터
-                          </span>
+                        <div key={cat}>
+                          <p className="mb-1 text-xs font-bold text-zinc-400">
+                            {POS_CATEGORY_LABELS[cat]}
+                          </p>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm sm:grid-cols-3">
+                            {rows.map(({ memberId, count }) => {
+                              const m = memberById.get(memberId);
+                              return (
+                                <div key={memberId} className="flex justify-between">
+                                  <span>
+                                    {m?.name ?? "?"}
+                                    {m?.isGuest ? " · 용병" : ""}
+                                  </span>
+                                  <span className="font-semibold text-zinc-500">
+                                    {count}쿼터
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     })}
