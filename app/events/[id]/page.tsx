@@ -145,6 +145,7 @@ export default function EventDetailPage({
   if (!event) return <p className="py-10 text-center text-zinc-400">불러오는 중…</p>;
 
   const attendIds = votes.filter((v) => v.status === "attend").map((v) => v.memberId);
+  const amAttendee = myId != null && attendIds.includes(myId);
   const counts: Record<VoteStatus, number> = {
     attend: attendIds.length,
     maybe: votes.filter((v) => v.status === "maybe").length,
@@ -506,7 +507,7 @@ export default function EventDetailPage({
   };
 
   const voteMvp = async () => {
-    if (!myId || !mvpPick) return;
+    if (!myId || !amAttendee || !mvpPick) return;
     await fetch(`/api/events/${id}/mvp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1247,7 +1248,7 @@ export default function EventDetailPage({
               className="flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
               value={mvpPick || (myMvpVote != null ? String(myMvpVote) : "")}
               onChange={(e) => setMvpPick(e.target.value)}
-              disabled={!myId}
+              disabled={!myId || !amAttendee}
             >
               <option value="">투표할 선수 선택</option>
               {members
@@ -1261,7 +1262,7 @@ export default function EventDetailPage({
             </select>
             <button
               onClick={voteMvp}
-              disabled={!myId || !mvpPick}
+              disabled={!myId || !amAttendee || !mvpPick}
               className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               투표
@@ -1272,6 +1273,11 @@ export default function EventDetailPage({
               {user
                 ? "아직 멤버 프로필과 연결되지 않았어요."
                 : "투표하려면 먼저 로그인해 주세요."}
+            </p>
+          )}
+          {myId && !amAttendee && (
+            <p className="mt-2 text-xs text-zinc-400">
+              경기 참여자(참석 투표)만 MVP 투표를 할 수 있어요.
             </p>
           )}
 
