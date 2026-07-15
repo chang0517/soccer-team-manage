@@ -1,4 +1,4 @@
-import { seasonOf } from "./season";
+import { HISTORICAL_BASELINE_SEASON, seasonOf } from "./season";
 import type {
   EventItem,
   HistoricalStats,
@@ -107,8 +107,9 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
  * 무실점(클린시트) 경기에 출전한 GK·센터백·윙백은 1.25점, 수미는 0.625점.
  * MVP 선정 횟수는 총점에는 반영하지 않고 별도로 집계한다.
  * historical(과거 스프레드시트 누적 기록)이 있으면 기준치로 더한다 —
- * 단, 특정 시즌만 볼 때는 그 이전 시즌들의 뭉뚱그려진 누적치라 포함하지
- * 않고, "전체"(season=null)를 볼 때만 기준치로 더한다.
+ * 이 기록은 전부 HISTORICAL_BASELINE_SEASON(2026) 시즌 안에 열린 경기라
+ * "전체"(season=null)뿐 아니라 그 시즌을 볼 때도 함께 더하고, 그 외
+ * 시즌에서는 제외한다.
  * season을 지정하면 그 시즌(매년 12월 15일~다음해 12월 14일)의 경기·
  * 기록만으로 계산하고, null(기본값)이면 역대 전체를 합산한다.
  */
@@ -130,7 +131,9 @@ export function computeRanking(
   const mvpCounts = computeMvpCounts(scopedMvpVotes);
   const streaks = computeStreaks(scopedEvents, scopedRecords);
   const historicalById =
-    season == null ? new Map(historical.map((h) => [h.memberId, h])) : new Map();
+    season == null || season === HISTORICAL_BASELINE_SEASON
+      ? new Map(historical.map((h) => [h.memberId, h]))
+      : new Map();
   const rows = new Map<number, RankingRow>(
     members.map((m) => {
       const h = historicalById.get(m.id);
