@@ -9,6 +9,9 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  Poll,
+  PollOption,
+  PollVoteRow,
   RecordRow,
   UserRole,
   UserStatus,
@@ -202,4 +205,41 @@ export async function getAllPushSubscriptions() {
 }
 export async function deletePushSubscription(endpoint: string) {
   return usePg ? pg.deletePushSubscription(endpoint) : sqlite.deletePushSubscription(endpoint);
+}
+
+export async function listPolls(): Promise<Poll[]> {
+  return usePg ? pg.listPolls() : sqlite.listPolls();
+}
+export async function getPoll(id: number): Promise<Poll | null> {
+  return usePg ? pg.getPoll(id) : sqlite.getPoll(id);
+}
+export async function getAllPollOptions(): Promise<PollOption[]> {
+  return usePg ? pg.getAllPollOptions() : sqlite.getAllPollOptions();
+}
+export async function createPoll(
+  title: string,
+  options: string[],
+  createdBy: number
+): Promise<Poll> {
+  return usePg
+    ? pg.createPoll(title, options, createdBy)
+    : sqlite.createPoll(title, options, createdBy);
+}
+export async function setPollClosed(id: number, closed: boolean) {
+  return usePg ? pg.setPollClosed(id, closed) : sqlite.setPollClosed(id, closed);
+}
+export async function deletePoll(id: number) {
+  return usePg ? pg.deletePoll(id) : sqlite.deletePoll(id);
+}
+export async function getAllPollVotes(): Promise<PollVoteRow[]> {
+  return usePg ? pg.getAllPollVotes() : sqlite.getAllPollVotes();
+}
+export async function setPollVote(
+  pollId: number,
+  memberId: number,
+  optionIds: number[]
+) {
+  return usePg
+    ? pg.setPollVote(pollId, memberId, optionIds)
+    : sqlite.setPollVote(pollId, memberId, optionIds);
 }

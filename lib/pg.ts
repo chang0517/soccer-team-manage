@@ -9,6 +9,9 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  Poll,
+  PollOption,
+  PollVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
@@ -143,6 +146,25 @@ async function init() {
       auth TEXT NOT NULL,
       member_id INTEGER,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS polls (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      closed BOOLEAN NOT NULL DEFAULT false
+    );
+    CREATE TABLE IF NOT EXISTS poll_options (
+      id SERIAL PRIMARY KEY,
+      poll_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      order_idx INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      poll_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      option_id INTEGER NOT NULL,
+      PRIMARY KEY (poll_id, member_id, option_id)
     );
   `);
   await pool.query(
@@ -808,4 +830,131 @@ export async function getAllPushSubscriptions(): Promise<
 export async function deletePushSubscription(endpoint: string) {
   const pool = await ready();
   await pool.query("DELETE FROM push_subscriptions WHERE endpoint=$1", [endpoint]);
+}
+
+// ---------- 이벤트 투표(폴) ----------
+function toPoll(r: {
+  id: number;
+  title: string;
+  created_by: number;
+  created_at: string;
+  closed: boolean;
+}): Poll {
+  return {
+    id: r.id,
+    title: r.title,
+    createdBy: r.created_by,
+    createdAt: r.created_at,
+    closed: !!r.closed,
+  };
+}
+
+function toPollOption(r: {
+  id: number;
+  poll_id: number;
+  label: string;
+  order_idx: number;
+}): PollOption {
+  return { id: r.id, pollId: r.poll_id, label: r.label, order: r.order_idx };
+}
+
+export async function listPolls(): Promise<Poll[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM polls ORDER BY created_at DESC");
+  return rows.map(toPoll);
+}
+
+export async function getPoll(id: number): Promise<Poll | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM polls WHERE id=$1", [id]);
+  return rows[0] ? toPoll(rows[0]) : null;
+}
+
+export async function getAllPollOptions(): Promise<PollOption[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM poll_options ORDER BY poll_id, order_idx"
+  );
+  return rows.map(toPollOption);
+}
+
+export async function createPoll(
+  title: string,
+  options: string[],
+  createdBy: number
+): Promise<Poll> {
+  const pool = await ready();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "INSERT INTO polls (title, created_by) VALUES ($1, $2) RETURNING *",
+      [title, createdBy]
+    );
+    const poll = toPoll(rows[0]);
+    let order = 0;
+    for (const label of options) {
+      await client.query(
+        "INSERT INTO poll_options (poll_id, label, order_idx) VALUES ($1, $2, $3)",
+        [poll.id, label, order++]
+      );
+    }
+    await client.query("COMMIT");
+    return poll;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function setPollClosed(id: number, closed: boolean) {
+  const pool = await ready();
+  await pool.query("UPDATE polls SET closed=$1 WHERE id=$2", [closed, id]);
+}
+
+export async function deletePoll(id: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM poll_votes WHERE poll_id=$1", [id]);
+  await pool.query("DELETE FROM poll_options WHERE poll_id=$1", [id]);
+  await pool.query("DELETE FROM polls WHERE id=$1", [id]);
+}
+
+export async function getAllPollVotes(): Promise<PollVoteRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM poll_votes");
+  return rows.map((r) => ({
+    pollId: r.poll_id,
+    memberId: r.member_id,
+    optionId: r.option_id,
+  }));
+}
+
+export async function setPollVote(
+  pollId: number,
+  memberId: number,
+  optionIds: number[]
+) {
+  const pool = await ready();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "DELETE FROM poll_votes WHERE poll_id=$1 AND member_id=$2",
+      [pollId, memberId]
+    );
+    for (const optionId of optionIds) {
+      await client.query(
+        "INSERT INTO poll_votes (poll_id, member_id, option_id) VALUES ($1, $2, $3)",
+        [pollId, memberId, optionId]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

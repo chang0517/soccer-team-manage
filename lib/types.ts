@@ -202,3 +202,34 @@ export interface HallOfFameRow {
   cleanSheetFirstId: number | null;
   overallFirstId: number | null;
 }
+
+// 이벤트 투표(월드컵 우승팀 예측 등 자유 주제 투표). 로그인한 회원이면
+// 누구나 만들 수 있고, 보기는 복수 선택이 가능하며 결과는 항상 실시간 공개된다.
+export interface Poll {
+  id: number;
+  title: string;
+  createdBy: number; // memberId
+  createdAt: string;
+  closed: boolean;
+}
+
+export interface PollOption {
+  id: number;
+  pollId: number;
+  label: string;
+  order: number;
+}
+
+export interface PollVoteRow {
+  pollId: number;
+  memberId: number;
+  optionId: number;
+}
+
+export interface PollDetail extends Poll {
+  creatorName: string;
+  options: PollOption[];
+  voteCounts: Record<number, number>;
+  voterCount: number;
+  myOptionIds: number[];
+}

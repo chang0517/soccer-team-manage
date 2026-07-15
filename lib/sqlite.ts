@@ -11,6 +11,9 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  Poll,
+  PollOption,
+  PollVoteRow,
   PosGroup,
   RecordRow,
   SquadData,
@@ -127,6 +130,25 @@ function createDb(): Database.Database {
       auth TEXT NOT NULL,
       member_id INTEGER,
       created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS polls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      closed INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS poll_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poll_id INTEGER NOT NULL,
+      label TEXT NOT NULL,
+      order_idx INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      poll_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      option_id INTEGER NOT NULL,
+      PRIMARY KEY (poll_id, member_id, option_id)
     );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
@@ -807,4 +829,112 @@ export function getAllPushSubscriptions(): {
 
 export function deletePushSubscription(endpoint: string) {
   getDb().prepare("DELETE FROM push_subscriptions WHERE endpoint=?").run(endpoint);
+}
+
+// ---------- 이벤트 투표(폴) ----------
+type PollDbRow = {
+  id: number;
+  title: string;
+  created_by: number;
+  created_at: string;
+  closed: number;
+};
+
+function toPoll(r: PollDbRow): Poll {
+  return {
+    id: r.id,
+    title: r.title,
+    createdBy: r.created_by,
+    createdAt: r.created_at,
+    closed: !!r.closed,
+  };
+}
+
+type PollOptionDbRow = { id: number; poll_id: number; label: string; order_idx: number };
+
+function toPollOption(r: PollOptionDbRow): PollOption {
+  return { id: r.id, pollId: r.poll_id, label: r.label, order: r.order_idx };
+}
+
+export function listPolls(): Poll[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM polls ORDER BY created_at DESC")
+    .all() as PollDbRow[];
+  return rows.map(toPoll);
+}
+
+export function getPoll(id: number): Poll | null {
+  const row = getDb().prepare("SELECT * FROM polls WHERE id=?").get(id) as
+    | PollDbRow
+    | undefined;
+  return row ? toPoll(row) : null;
+}
+
+export function getAllPollOptions(): PollOption[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM poll_options ORDER BY poll_id, order_idx")
+    .all() as PollOptionDbRow[];
+  return rows.map(toPollOption);
+}
+
+export function createPoll(
+  title: string,
+  options: string[],
+  createdBy: number
+): Poll {
+  const createdAt = new Date().toISOString();
+  const db = getDb();
+  const insertPoll = db.prepare(
+    "INSERT INTO polls (title, created_by, created_at, closed) VALUES (?, ?, ?, 0)"
+  );
+  const insertOption = db.prepare(
+    "INSERT INTO poll_options (poll_id, label, order_idx) VALUES (?, ?, ?)"
+  );
+  const pollId = db.transaction(() => {
+    const info = insertPoll.run(title, createdBy, createdAt);
+    const id = Number(info.lastInsertRowid);
+    options.forEach((label, i) => insertOption.run(id, label, i));
+    return id;
+  })();
+  return { id: pollId, title, createdBy, createdAt, closed: false };
+}
+
+export function setPollClosed(id: number, closed: boolean) {
+  getDb().prepare("UPDATE polls SET closed=? WHERE id=?").run(closed ? 1 : 0, id);
+}
+
+export function deletePoll(id: number) {
+  const db = getDb();
+  db.transaction(() => {
+    db.prepare("DELETE FROM poll_votes WHERE poll_id=?").run(id);
+    db.prepare("DELETE FROM poll_options WHERE poll_id=?").run(id);
+    db.prepare("DELETE FROM polls WHERE id=?").run(id);
+  })();
+}
+
+export function getAllPollVotes(): PollVoteRow[] {
+  const rows = getDb().prepare("SELECT * FROM poll_votes").all() as {
+    poll_id: number;
+    member_id: number;
+    option_id: number;
+  }[];
+  return rows.map((r) => ({
+    pollId: r.poll_id,
+    memberId: r.member_id,
+    optionId: r.option_id,
+  }));
+}
+
+export function setPollVote(pollId: number, memberId: number, optionIds: number[]) {
+  const db = getDb();
+  db.transaction(() => {
+    db.prepare("DELETE FROM poll_votes WHERE poll_id=? AND member_id=?").run(
+      pollId,
+      memberId
+    );
+    const insert = db.prepare(
+      "INSERT INTO poll_votes (poll_id, member_id, option_id) VALUES (?, ?, ?)"
+    );
+    for (const optionId of optionIds) insert.run(pollId, memberId, optionId);
+  })();
 }

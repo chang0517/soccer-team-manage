@@ -9,6 +9,7 @@ const BASE_TABS = [
   { href: "/", label: "홈", icon: "🏠" },
   { href: "/schedule", label: "일정", icon: "📅" },
   { href: "/notice", label: "공지", icon: "📢" },
+  { href: "/polls", label: "투표", icon: "🗳️" },
   { href: "/ranking", label: "랭킹", icon: "🏆" },
   { href: "/members", label: "멤버", icon: "👥" },
   { href: "/hall-of-fame", label: "전당", icon: "🏅" },
