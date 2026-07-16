@@ -136,7 +136,8 @@ function createDb(): Database.Database {
       title TEXT NOT NULL,
       created_by INTEGER NOT NULL,
       created_at TEXT NOT NULL,
-      closed INTEGER NOT NULL DEFAULT 0
+      closed INTEGER NOT NULL DEFAULT 0,
+      multi_select INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS poll_options (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,6 +177,10 @@ function createDb(): Database.Database {
   }[];
   if (histCols.length > 0 && !histCols.some((c) => c.name === "bonus_pts")) {
     db.exec("ALTER TABLE historical_stats ADD COLUMN bonus_pts REAL NOT NULL DEFAULT 0");
+  }
+  const pollCols = db.prepare("PRAGMA table_info(polls)").all() as { name: string }[];
+  if (pollCols.length > 0 && !pollCols.some((c) => c.name === "multi_select")) {
+    db.exec("ALTER TABLE polls ADD COLUMN multi_select INTEGER NOT NULL DEFAULT 1");
   }
   seedIfEmpty(db);
   return db;
@@ -838,6 +843,7 @@ type PollDbRow = {
   created_by: number;
   created_at: string;
   closed: number;
+  multi_select: number;
 };
 
 function toPoll(r: PollDbRow): Poll {
@@ -847,6 +853,7 @@ function toPoll(r: PollDbRow): Poll {
     createdBy: r.created_by,
     createdAt: r.created_at,
     closed: !!r.closed,
+    multiSelect: !!r.multi_select,
   };
 }
 
@@ -880,23 +887,24 @@ export function getAllPollOptions(): PollOption[] {
 export function createPoll(
   title: string,
   options: string[],
-  createdBy: number
+  createdBy: number,
+  multiSelect: boolean
 ): Poll {
   const createdAt = new Date().toISOString();
   const db = getDb();
   const insertPoll = db.prepare(
-    "INSERT INTO polls (title, created_by, created_at, closed) VALUES (?, ?, ?, 0)"
+    "INSERT INTO polls (title, created_by, created_at, closed, multi_select) VALUES (?, ?, ?, 0, ?)"
   );
   const insertOption = db.prepare(
     "INSERT INTO poll_options (poll_id, label, order_idx) VALUES (?, ?, ?)"
   );
   const pollId = db.transaction(() => {
-    const info = insertPoll.run(title, createdBy, createdAt);
+    const info = insertPoll.run(title, createdBy, createdAt, multiSelect ? 1 : 0);
     const id = Number(info.lastInsertRowid);
     options.forEach((label, i) => insertOption.run(id, label, i));
     return id;
   })();
-  return { id: pollId, title, createdBy, createdAt, closed: false };
+  return { id: pollId, title, createdBy, createdAt, closed: false, multiSelect };
 }
 
 export function setPollClosed(id: number, closed: boolean) {

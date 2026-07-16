@@ -211,6 +211,7 @@ export interface Poll {
   createdBy: number; // memberId
   createdAt: string;
   closed: boolean;
+  multiSelect: boolean; // 생성 시 고정, 이후 수정 불가
 }
 
 export interface PollOption {

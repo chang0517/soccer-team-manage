@@ -21,6 +21,12 @@ export async function POST(
   if (!memberId || optionIds.length === 0) {
     return Response.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
+  if (!poll.multiSelect && optionIds.length > 1) {
+    return Response.json(
+      { error: "이 투표는 하나만 선택할 수 있어요." },
+      { status: 400 }
+    );
+  }
 
   const session = await getSessionUser();
   if (!session || (session.role !== "admin" && session.memberId !== memberId)) {

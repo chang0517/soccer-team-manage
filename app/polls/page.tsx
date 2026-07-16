@@ -13,6 +13,7 @@ export default function PollsPage() {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [options, setOptions] = useState<string[]>(emptyOptions);
+  const [multiSelect, setMultiSelect] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [picks, setPicks] = useState<Record<number, Set<number>>>({});
@@ -53,7 +54,7 @@ export default function PollsPage() {
     const res = await fetch("/api/polls", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, options: cleanOptions }),
+      body: JSON.stringify({ title, options: cleanOptions, multiSelect }),
     });
     const data = await res.json();
     setSaving(false);
@@ -63,16 +64,18 @@ export default function PollsPage() {
     }
     setTitle("");
     setOptions(emptyOptions);
+    setMultiSelect(true);
     setShowForm(false);
     load();
   };
 
-  const togglePick = (pollId: number, optionId: number) =>
+  const togglePick = (poll: PollDetail, optionId: number) =>
     setPicks((prev) => {
-      const next = new Set(prev[pollId] ?? []);
+      if (!poll.multiSelect) return { ...prev, [poll.id]: new Set([optionId]) };
+      const next = new Set(prev[poll.id] ?? []);
       if (next.has(optionId)) next.delete(optionId);
       else next.add(optionId);
-      return { ...prev, [pollId]: next };
+      return { ...prev, [poll.id]: next };
     });
 
   const vote = async (pollId: number) => {
@@ -166,6 +169,14 @@ export default function PollsPage() {
               + 보기 추가
             </button>
           </div>
+          <label className="flex items-center gap-2 text-sm text-zinc-600">
+            <input
+              type="checkbox"
+              checked={multiSelect}
+              onChange={(e) => setMultiSelect(e.target.checked)}
+            />
+            복수 선택 허용 (만든 후에는 바꿀 수 없어요)
+          </label>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button
             onClick={submitPoll}
@@ -200,6 +211,7 @@ export default function PollsPage() {
                   <p className="font-bold">{poll.title}</p>
                   <p className="mt-0.5 text-xs text-zinc-400">
                     {poll.creatorName} · 참여 {poll.voterCount}명
+                    {!poll.multiSelect && " · 단일 선택"}
                     {poll.closed && " · 마감됨"}
                   </p>
                 </div>
@@ -241,7 +253,7 @@ export default function PollsPage() {
                         />
                         <div className="relative flex items-center justify-between px-3 py-2">
                           <button
-                            onClick={() => myId && !poll.closed && togglePick(poll.id, o.id)}
+                            onClick={() => myId && !poll.closed && togglePick(poll, o.id)}
                             disabled={!myId || poll.closed}
                             className="min-w-0 flex-1 text-left disabled:opacity-70"
                           >

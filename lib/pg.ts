@@ -152,7 +152,8 @@ async function init() {
       title TEXT NOT NULL,
       created_by INTEGER NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      closed BOOLEAN NOT NULL DEFAULT false
+      closed BOOLEAN NOT NULL DEFAULT false,
+      multi_select BOOLEAN NOT NULL DEFAULT true
     );
     CREATE TABLE IF NOT EXISTS poll_options (
       id SERIAL PRIMARY KEY,
@@ -182,6 +183,9 @@ async function init() {
   await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS record_log JSONB");
   await pool.query(
     "ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER"
+  );
+  await pool.query(
+    "ALTER TABLE polls ADD COLUMN IF NOT EXISTS multi_select BOOLEAN NOT NULL DEFAULT true"
   );
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
@@ -839,6 +843,7 @@ function toPoll(r: {
   created_by: number;
   created_at: string;
   closed: boolean;
+  multi_select: boolean;
 }): Poll {
   return {
     id: r.id,
@@ -846,6 +851,7 @@ function toPoll(r: {
     createdBy: r.created_by,
     createdAt: r.created_at,
     closed: !!r.closed,
+    multiSelect: !!r.multi_select,
   };
 }
 
@@ -881,15 +887,16 @@ export async function getAllPollOptions(): Promise<PollOption[]> {
 export async function createPoll(
   title: string,
   options: string[],
-  createdBy: number
+  createdBy: number,
+  multiSelect: boolean
 ): Promise<Poll> {
   const pool = await ready();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const { rows } = await client.query(
-      "INSERT INTO polls (title, created_by) VALUES ($1, $2) RETURNING *",
-      [title, createdBy]
+      "INSERT INTO polls (title, created_by, multi_select) VALUES ($1, $2, $3) RETURNING *",
+      [title, createdBy, multiSelect]
     );
     const poll = toPoll(rows[0]);
     let order = 0;

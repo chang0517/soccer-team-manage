@@ -219,11 +219,12 @@ export async function getAllPollOptions(): Promise<PollOption[]> {
 export async function createPoll(
   title: string,
   options: string[],
-  createdBy: number
+  createdBy: number,
+  multiSelect: boolean
 ): Promise<Poll> {
   return usePg
-    ? pg.createPoll(title, options, createdBy)
-    : sqlite.createPoll(title, options, createdBy);
+    ? pg.createPoll(title, options, createdBy, multiSelect)
+    : sqlite.createPoll(title, options, createdBy, multiSelect);
 }
 export async function setPollClosed(id: number, closed: boolean) {
   return usePg ? pg.setPollClosed(id, closed) : sqlite.setPollClosed(id, closed);

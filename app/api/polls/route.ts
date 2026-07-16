@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const poll = await createPoll(title, options, session.memberId);
+  const multiSelect = body?.multiSelect !== false;
+  const poll = await createPoll(title, options, session.memberId, multiSelect);
   return Response.json(poll, { status: 201 });
 }
