@@ -156,6 +156,11 @@ export async function upsertHistoricalStats(stats: HistoricalStats) {
     ? pg.upsertHistoricalStats(stats)
     : sqlite.upsertHistoricalStats(stats);
 }
+export async function deleteHistoricalStats(memberId: number) {
+  return usePg
+    ? pg.deleteHistoricalStats(memberId)
+    : sqlite.deleteHistoricalStats(memberId);
+}
 
 export async function listAnnouncements(): Promise<AnnouncementRow[]> {
   return usePg ? pg.listAnnouncements() : sqlite.listAnnouncements();

@@ -682,6 +682,10 @@ export function upsertHistoricalStats(stats: HistoricalStats) {
     );
 }
 
+export function deleteHistoricalStats(memberId: number) {
+  getDb().prepare("DELETE FROM historical_stats WHERE member_id=?").run(memberId);
+}
+
 // ---------- announcements ----------
 type AnnouncementDbRow = {
   id: number;

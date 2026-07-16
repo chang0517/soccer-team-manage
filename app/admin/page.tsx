@@ -107,9 +107,14 @@ export default function AdminPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">운영진 · 가입 승인</h1>
-        <Link href="/admin/fines" className="text-sm font-semibold text-blue-700">
-          이번 달 미투표자 →
-        </Link>
+        <div className="flex flex-col items-end gap-1 text-sm">
+          <Link href="/admin/fines" className="font-semibold text-blue-700">
+            이번 달 미투표자 →
+          </Link>
+          <Link href="/admin/historical-stats" className="font-semibold text-blue-700">
+            역대 기록 관리 →
+          </Link>
+        </div>
       </div>
       <p className="text-sm text-zinc-500">
         가입 신청자가 실제 팀원인지 이름을 보고 확인한 다음, 기존 멤버와

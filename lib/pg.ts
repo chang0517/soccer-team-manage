@@ -685,6 +685,11 @@ export async function upsertHistoricalStats(stats: HistoricalStats) {
   );
 }
 
+export async function deleteHistoricalStats(memberId: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM historical_stats WHERE member_id=$1", [memberId]);
+}
+
 function toAnnouncement(r: {
   id: number;
   title: string;
