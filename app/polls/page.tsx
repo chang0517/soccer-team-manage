@@ -19,6 +19,7 @@ export default function PollsPage() {
   const [votingId, setVotingId] = useState<number | null>(null);
   const [newOptionDrafts, setNewOptionDrafts] = useState<Record<number, string>>({});
   const [addingOptionId, setAddingOptionId] = useState<number | null>(null);
+  const [expandedOptionId, setExpandedOptionId] = useState<number | null>(null);
 
   const load = () =>
     fetch(`/api/polls${myId ? `?memberId=${myId}` : ""}`)
@@ -225,31 +226,46 @@ export default function PollsPage() {
                   const count = poll.voteCounts[o.id] ?? 0;
                   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
                   const picked = myPicks.has(o.id);
+                  const voters = poll.optionVoters[o.id] ?? [];
+                  const isExpanded = expandedOptionId === o.id;
                   return (
-                    <button
-                      key={o.id}
-                      onClick={() =>
-                        myId && !poll.closed && togglePick(poll.id, o.id)
-                      }
-                      disabled={!myId || poll.closed}
-                      className={`relative w-full overflow-hidden rounded-xl border px-3 py-2 text-left text-sm disabled:opacity-70 ${
-                        picked ? "border-blue-500 bg-blue-50" : "border-zinc-200"
-                      }`}
-                    >
+                    <div key={o.id}>
                       <div
-                        className="absolute inset-y-0 left-0 bg-blue-100/70"
-                        style={{ width: `${pct}%` }}
-                      />
-                      <div className="relative flex items-center justify-between">
-                        <span className={picked ? "font-semibold text-blue-800" : ""}>
-                          {picked && "✓ "}
-                          {o.label}
-                        </span>
-                        <span className="text-xs text-zinc-500">
-                          {count}표 · {pct}%
-                        </span>
+                        className={`relative w-full overflow-hidden rounded-xl border text-sm ${
+                          picked ? "border-blue-500 bg-blue-50" : "border-zinc-200"
+                        }`}
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0 bg-blue-100/70"
+                          style={{ width: `${pct}%` }}
+                        />
+                        <div className="relative flex items-center justify-between px-3 py-2">
+                          <button
+                            onClick={() => myId && !poll.closed && togglePick(poll.id, o.id)}
+                            disabled={!myId || poll.closed}
+                            className="min-w-0 flex-1 text-left disabled:opacity-70"
+                          >
+                            <span className={picked ? "font-semibold text-blue-800" : ""}>
+                              {picked && "✓ "}
+                              {o.label}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setExpandedOptionId((cur) => (cur === o.id ? null : o.id))
+                            }
+                            className="shrink-0 pl-2 text-xs text-zinc-500 hover:underline"
+                          >
+                            {count}표 · {pct}%
+                          </button>
+                        </div>
                       </div>
-                    </button>
+                      {isExpanded && (
+                        <p className="mt-1 px-1 text-xs text-zinc-500">
+                          {voters.length > 0 ? voters.join(", ") : "아직 투표한 사람이 없어요."}
+                        </p>
+                      )}
+                    </div>
                   );
                 })}
               </div>

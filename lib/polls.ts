@@ -24,8 +24,17 @@ export function buildPollDetails(
   return polls.map((poll) => {
     const pollVotes = votesByPoll.get(poll.id) ?? [];
     const voteCounts: Record<number, number> = {};
-    for (const o of optionsByPoll.get(poll.id) ?? []) voteCounts[o.id] = 0;
-    for (const v of pollVotes) voteCounts[v.optionId] = (voteCounts[v.optionId] ?? 0) + 1;
+    const optionVoters: Record<number, string[]> = {};
+    for (const o of optionsByPoll.get(poll.id) ?? []) {
+      voteCounts[o.id] = 0;
+      optionVoters[o.id] = [];
+    }
+    for (const v of pollVotes) {
+      voteCounts[v.optionId] = (voteCounts[v.optionId] ?? 0) + 1;
+      const name = memberById.get(v.memberId)?.name ?? "알 수 없음";
+      (optionVoters[v.optionId] ??= []).push(name);
+    }
+    for (const names of Object.values(optionVoters)) names.sort((a, b) => a.localeCompare(b, "ko"));
     const voterCount = new Set(pollVotes.map((v) => v.memberId)).size;
     const myOptionIds =
       viewerMemberId == null
@@ -36,6 +45,7 @@ export function buildPollDetails(
       creatorName: memberById.get(poll.createdBy)?.name ?? "알 수 없음",
       options: (optionsByPoll.get(poll.id) ?? []).slice().sort((a, b) => a.order - b.order),
       voteCounts,
+      optionVoters,
       voterCount,
       myOptionIds,
     };

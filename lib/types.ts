@@ -230,6 +230,7 @@ export interface PollDetail extends Poll {
   creatorName: string;
   options: PollOption[];
   voteCounts: Record<number, number>;
+  optionVoters: Record<number, string[]>;
   voterCount: number;
   myOptionIds: number[];
 }
