@@ -1099,8 +1099,40 @@ export default function EventDetailPage({
           <h2 className="mb-1 text-base font-bold">경기 기록</h2>
           <p className="mb-3 text-xs text-zinc-400">
             쿼터별로 스코어와 득점·어시스트를 입력하면 자동으로 합산돼서 최종
-            스코어와 개인 기록에 반영돼요. 참석 투표한 사람만 선택할 수 있어요.
+            스코어와 개인 기록에 반영돼요. 참석 투표한 사람만 선택할 수
+            있어요 — 득점·어시가 없는 선수(예: 무실점 방어에 기여한
+            수비수·GK)도 출전·클린시트 점수를 받으려면 반드시 참석으로
+            등록돼 있어야 해요.
           </p>
+
+          {isAdmin && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg bg-zinc-50 p-2">
+              <select
+                className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                value={adminAddPick}
+                onChange={(e) => setAdminAddPick(e.target.value)}
+              >
+                <option value="">
+                  투표 없이 뛴 선수를 참석으로 추가
+                </option>
+                {members
+                  .filter((m) => !attendIds.includes(m.id))
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.isGuest ? " · 용병" : ""}
+                    </option>
+                  ))}
+              </select>
+              <button
+                onClick={adminAddAttend}
+                disabled={!adminAddPick}
+                className="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                참석 추가
+              </button>
+            </div>
+          )}
 
           <div className="mb-3 grid grid-cols-4 gap-1.5">
             {recordQuarters.map((_, qi) => (
