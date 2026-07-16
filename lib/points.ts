@@ -1,9 +1,11 @@
 import { HISTORICAL_BASELINE_SEASON, seasonOf } from "./season";
+import { QUARTER_COUNT, slotPositionFor } from "./squad";
 import type {
   EventItem,
   HistoricalStats,
   Member,
   MvpVoteRow,
+  PosGroup,
   RankingRow,
   RecordRow,
 } from "./types";
@@ -102,6 +104,58 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
   return mvpCounts;
 }
 
+function cleanSheetRateFor(pos: PosGroup): number {
+  if (pos === "GK" || pos === "CB" || pos === "WB") return RULES.cleanSheetDefence;
+  if (pos === "DM") return RULES.cleanSheetDm;
+  return 0;
+}
+
+/**
+ * 클린시트는 경기 전체가 아니라 "그 쿼터에 실제로 뛰었는지"를 기준으로 준다.
+ * 스쿼드(쿼터별 출전 명단)와 쿼터별 기록(recordLog의 쿼터별 실점)이 모두 있는
+ * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백·수미에게 (풀 클린시트
+ * 점수 ÷ 쿼터 수)만큼 쿼터별로 나눠 준다. 하프 분할 슬롯은 그 절반만 받는다.
+ * 스쿼드나 쿼터 기록이 없는 경기(과거 기록 일괄 입력 등)는 이 계산에서
+ * 제외되고, computeRanking이 경기 전체 무실점 여부로 대신 처리한다.
+ */
+export function computeQuarterCleanPts(
+  events: EventItem[],
+  members: Member[]
+): Map<number, number> {
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const result = new Map<number, number>();
+
+  for (const ev of events) {
+    if (!ev.squad || !ev.recordLog) continue;
+    for (let i = 0; i < ev.squad.quarters.length; i++) {
+      const log = ev.recordLog[i];
+      if (!log || log.conceded !== 0) continue;
+      for (const slot of ev.squad.quarters[i].starters) {
+        const isSplit = slot.memberId2 !== undefined && slot.memberId2 !== null;
+        const shares: { memberId: number; weight: number }[] = isSplit
+          ? [
+              ...(slot.memberId != null ? [{ memberId: slot.memberId, weight: 0.5 }] : []),
+              { memberId: slot.memberId2 as number, weight: 0.5 },
+            ]
+          : slot.memberId != null
+            ? [{ memberId: slot.memberId, weight: 1 }]
+            : [];
+        for (const { memberId, weight } of shares) {
+          const member = memberById.get(memberId);
+          if (!member) continue;
+          const pos = slotPositionFor(slot.slotId, member);
+          if (!pos) continue;
+          const rate = cleanSheetRateFor(pos);
+          if (rate === 0) continue;
+          const add = (rate / QUARTER_COUNT) * weight;
+          result.set(memberId, (result.get(memberId) ?? 0) + add);
+        }
+      }
+    }
+  }
+  return result;
+}
+
 /**
  * 점수 규칙: 출전 1.5점, 골 1.4점, 어시스트 1.25점.
  * 무실점(클린시트) 경기에 출전한 GK·센터백·윙백은 1.25점, 수미는 0.625점.
@@ -161,11 +215,19 @@ export function computeRanking(
     if (r.played) row.played += 1;
     row.goals += r.goals;
     row.assists += r.assists;
-    if (r.played && ev && ev.conceded === 0) {
+    // 스쿼드+쿼터별 기록이 있는 경기는 아래 computeQuarterCleanPts가 쿼터
+    // 단위로 따로 계산하므로, 그 데이터가 없는 경기(과거 기록 일괄 입력 등)에
+    // 한해서만 경기 전체 무실점 여부로 클린시트를 매긴다.
+    if (r.played && ev && !(ev.squad && ev.recordLog) && ev.conceded === 0) {
       if (r.position === "GK" || r.position === "CB" || r.position === "WB")
         row.cleanPts += RULES.cleanSheetDefence;
       else if (r.position === "DM") row.cleanPts += RULES.cleanSheetDm;
     }
+  }
+
+  for (const [memberId, pts] of computeQuarterCleanPts(scopedEvents, members)) {
+    const row = rows.get(memberId);
+    if (row) row.cleanPts += pts;
   }
 
   // 소수 가중치(1.5·1.4·1.25·0.625)를 더하다 보면 부동소수점 오차로

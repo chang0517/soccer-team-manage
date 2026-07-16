@@ -233,6 +233,36 @@ export default function EventDetailPage({
     };
   })();
 
+  // 쿼터별 실점 입력을 기준으로, 무실점인 쿼터에 뛴 GK·센터백·윙백·수미를
+  // 골/어시처럼 바로 보여준다 — 저장 전에도 어떤 클린시트가 반영될지 미리 확인 가능.
+  const quarterCleanSheetLines = (() => {
+    if (!event.squad) return [] as string[];
+    const lines: string[] = [];
+    recordQuarters.forEach((q, qi) => {
+      if (q.conceded === "" || Number(q.conceded) !== 0) return;
+      const quarterSquad = event.squad!.quarters[qi];
+      if (!quarterSquad) return;
+      const names: string[] = [];
+      for (const slot of quarterSquad.starters) {
+        const ids = [slot.memberId, slot.memberId2].filter(
+          (v): v is number => v != null
+        );
+        for (const mid of ids) {
+          const mem = memberById.get(mid);
+          if (!mem) continue;
+          const pos = slotPositionFor(slot.slotId, mem);
+          if (pos === "GK" || pos === "CB" || pos === "WB" || pos === "DM") {
+            names.push(mem.name);
+          }
+        }
+      }
+      if (names.length > 0) {
+        lines.push(`${qi + 1}쿼터 무실점 클린시트: ${names.join(", ")}`);
+      }
+    });
+    return lines;
+  })();
+
   const vote = async (status: VoteStatus) => {
     if (!myId) return;
     const res = await fetch(`/api/events/${id}/vote`, {
@@ -1256,6 +1286,11 @@ export default function EventDetailPage({
                   .join(", ")}
               </p>
             )}
+            {quarterCleanSheetLines.map((line, i) => (
+              <p key={i} className="mt-1 text-xs text-sky-700">
+                {line}
+              </p>
+            ))}
           </div>
 
           <button
