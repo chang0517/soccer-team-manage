@@ -903,6 +903,18 @@ export function setPollClosed(id: number, closed: boolean) {
   getDb().prepare("UPDATE polls SET closed=? WHERE id=?").run(closed ? 1 : 0, id);
 }
 
+export function addPollOption(pollId: number, label: string): PollOption {
+  const db = getDb();
+  const { m } = db
+    .prepare("SELECT COALESCE(MAX(order_idx), -1) AS m FROM poll_options WHERE poll_id=?")
+    .get(pollId) as { m: number };
+  const order = m + 1;
+  const info = db
+    .prepare("INSERT INTO poll_options (poll_id, label, order_idx) VALUES (?, ?, ?)")
+    .run(pollId, label, order);
+  return { id: Number(info.lastInsertRowid), pollId, label, order };
+}
+
 export function deletePoll(id: number) {
   const db = getDb();
   db.transaction(() => {

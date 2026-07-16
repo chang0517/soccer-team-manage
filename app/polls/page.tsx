@@ -17,6 +17,8 @@ export default function PollsPage() {
   const [error, setError] = useState("");
   const [picks, setPicks] = useState<Record<number, Set<number>>>({});
   const [votingId, setVotingId] = useState<number | null>(null);
+  const [newOptionDrafts, setNewOptionDrafts] = useState<Record<number, string>>({});
+  const [addingOptionId, setAddingOptionId] = useState<number | null>(null);
 
   const load = () =>
     fetch(`/api/polls${myId ? `?memberId=${myId}` : ""}`)
@@ -98,6 +100,20 @@ export default function PollsPage() {
   const removePoll = async (pollId: number) => {
     if (!confirm("이 투표를 삭제할까요?")) return;
     await fetch(`/api/polls/${pollId}`, { method: "DELETE" });
+    load();
+  };
+
+  const addPollOption = async (pollId: number) => {
+    const label = (newOptionDrafts[pollId] ?? "").trim();
+    if (!label) return;
+    setAddingOptionId(pollId);
+    await fetch(`/api/polls/${pollId}/options`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+    setAddingOptionId(null);
+    setNewOptionDrafts((d) => ({ ...d, [pollId]: "" }));
     load();
   };
 
@@ -237,6 +253,31 @@ export default function PollsPage() {
                   );
                 })}
               </div>
+
+              {canManage && !poll.closed && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    className="min-w-0 flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                    placeholder="보기 추가"
+                    value={newOptionDrafts[poll.id] ?? ""}
+                    onChange={(e) =>
+                      setNewOptionDrafts((d) => ({ ...d, [poll.id]: e.target.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addPollOption(poll.id);
+                    }}
+                  />
+                  <button
+                    onClick={() => addPollOption(poll.id)}
+                    disabled={
+                      addingOptionId === poll.id || !(newOptionDrafts[poll.id] ?? "").trim()
+                    }
+                    className="shrink-0 rounded-xl border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-700 disabled:opacity-40"
+                  >
+                    추가
+                  </button>
+                </div>
+              )}
 
               {myId && !poll.closed && (
                 <button

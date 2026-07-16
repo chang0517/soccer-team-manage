@@ -914,6 +914,23 @@ export async function setPollClosed(id: number, closed: boolean) {
   await pool.query("UPDATE polls SET closed=$1 WHERE id=$2", [closed, id]);
 }
 
+export async function addPollOption(
+  pollId: number,
+  label: string
+): Promise<PollOption> {
+  const pool = await ready();
+  const { rows: maxRows } = await pool.query(
+    "SELECT COALESCE(MAX(order_idx), -1) AS m FROM poll_options WHERE poll_id=$1",
+    [pollId]
+  );
+  const order = Number(maxRows[0].m) + 1;
+  const { rows } = await pool.query(
+    "INSERT INTO poll_options (poll_id, label, order_idx) VALUES ($1, $2, $3) RETURNING *",
+    [pollId, label, order]
+  );
+  return toPollOption(rows[0]);
+}
+
 export async function deletePoll(id: number) {
   const pool = await ready();
   await pool.query("DELETE FROM poll_votes WHERE poll_id=$1", [id]);

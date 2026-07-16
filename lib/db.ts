@@ -228,6 +228,14 @@ export async function createPoll(
 export async function setPollClosed(id: number, closed: boolean) {
   return usePg ? pg.setPollClosed(id, closed) : sqlite.setPollClosed(id, closed);
 }
+export async function addPollOption(
+  pollId: number,
+  label: string
+): Promise<PollOption> {
+  return usePg
+    ? pg.addPollOption(pollId, label)
+    : sqlite.addPollOption(pollId, label);
+}
 export async function deletePoll(id: number) {
   return usePg ? pg.deletePoll(id) : sqlite.deletePoll(id);
 }
