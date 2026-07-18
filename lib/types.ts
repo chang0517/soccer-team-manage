@@ -72,6 +72,20 @@ export interface SessionUser {
   memberId: number | null;
 }
 
+// 아이디/비밀번호 찾기용 휴대폰 SMS 인증번호.
+export type VerificationPurpose = "find_id" | "reset_password";
+
+export interface PhoneVerificationRow {
+  id: number;
+  phone: string;
+  purpose: VerificationPurpose;
+  code: string;
+  attempts: number;
+  consumed: boolean;
+  expiresAt: string;
+  createdAt: string;
+}
+
 export type VoteStatus = "attend" | "maybe" | "absent";
 
 export interface SquadSlotAssign {

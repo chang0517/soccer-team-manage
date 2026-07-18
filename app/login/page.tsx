@@ -65,6 +65,15 @@ export default function LoginPage() {
           {loading ? "로그인 중…" : "로그인"}
         </button>
       </div>
+      <p className="flex justify-center gap-3 text-center text-xs text-zinc-500">
+        <Link href="/find-id" className="font-semibold text-blue-700">
+          아이디 찾기
+        </Link>
+        <span>·</span>
+        <Link href="/reset-password" className="font-semibold text-blue-700">
+          비밀번호 찾기
+        </Link>
+      </p>
       <p className="text-center text-sm text-zinc-500">
         계정이 없나요?{" "}
         <Link href="/signup" className="font-semibold text-blue-700">

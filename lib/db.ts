@@ -9,12 +9,14 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  PhoneVerificationRow,
   Poll,
   PollOption,
   PollVoteRow,
   RecordRow,
   UserRole,
   UserStatus,
+  VerificationPurpose,
   VoteRow,
   VoteStatus,
 } from "./types";
@@ -114,6 +116,9 @@ export async function getUserById(id: number): Promise<AppUser | null> {
 export async function listUsersByStatus(status: UserStatus): Promise<AppUser[]> {
   return usePg ? pg.listUsersByStatus(status) : sqlite.listUsersByStatus(status);
 }
+export async function getUsersByMemberId(memberId: number): Promise<AppUser[]> {
+  return usePg ? pg.getUsersByMemberId(memberId) : sqlite.getUsersByMemberId(memberId);
+}
 export async function createUser(u: {
   username: string;
   passwordHash: string;
@@ -133,6 +138,38 @@ export async function updateUserStatus(
   return usePg
     ? pg.updateUserStatus(id, status, memberId, role)
     : sqlite.updateUserStatus(id, status, memberId, role);
+}
+export async function updateUserPassword(id: number, passwordHash: string) {
+  return usePg
+    ? pg.updateUserPassword(id, passwordHash)
+    : sqlite.updateUserPassword(id, passwordHash);
+}
+
+export async function createPhoneVerification(v: {
+  phone: string;
+  purpose: VerificationPurpose;
+  code: string;
+  expiresAt: string;
+}): Promise<PhoneVerificationRow> {
+  return usePg ? pg.createPhoneVerification(v) : sqlite.createPhoneVerification(v);
+}
+export async function getLatestPhoneVerification(
+  phone: string,
+  purpose: VerificationPurpose
+): Promise<PhoneVerificationRow | null> {
+  return usePg
+    ? pg.getLatestPhoneVerification(phone, purpose)
+    : sqlite.getLatestPhoneVerification(phone, purpose);
+}
+export async function incrementPhoneVerificationAttempts(id: number) {
+  return usePg
+    ? pg.incrementPhoneVerificationAttempts(id)
+    : sqlite.incrementPhoneVerificationAttempts(id);
+}
+export async function consumePhoneVerification(id: number) {
+  return usePg
+    ? pg.consumePhoneVerification(id)
+    : sqlite.consumePhoneVerification(id);
 }
 
 export async function getComments(eventId: number): Promise<CommentRow[]> {

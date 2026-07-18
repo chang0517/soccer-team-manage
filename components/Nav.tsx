@@ -64,9 +64,19 @@ export default function Nav() {
               <div className="flex items-center gap-2 text-sm">
                 {user ? (
                   <>
-                    <span className="hidden text-blue-100 sm:inline">
+                    <Link
+                      href="/account"
+                      className="hidden text-blue-100 hover:underline sm:inline"
+                    >
                       {user.displayName}님
-                    </span>
+                    </Link>
+                    <Link
+                      href="/account"
+                      aria-label="계정 설정"
+                      className="rounded-lg px-1.5 py-1.5 text-base sm:hidden"
+                    >
+                      ⚙️
+                    </Link>
                     <button
                       onClick={doLogout}
                       className="rounded-lg bg-blue-800 px-2.5 py-1.5 text-xs font-semibold text-white"

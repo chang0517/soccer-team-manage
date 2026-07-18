@@ -9,6 +9,7 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  PhoneVerificationRow,
   Poll,
   PollOption,
   PollVoteRow,
@@ -17,6 +18,7 @@ import type {
   SquadData,
   UserRole,
   UserStatus,
+  VerificationPurpose,
   VoteRow,
   VoteStatus,
 } from "./types";
@@ -166,6 +168,16 @@ async function init() {
       member_id INTEGER NOT NULL,
       option_id INTEGER NOT NULL,
       PRIMARY KEY (poll_id, member_id, option_id)
+    );
+    CREATE TABLE IF NOT EXISTS phone_verifications (
+      id SERIAL PRIMARY KEY,
+      phone TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      code TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      consumed BOOLEAN NOT NULL DEFAULT false,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
   await pool.query(
@@ -565,6 +577,15 @@ export async function listUsersByStatus(status: UserStatus): Promise<AppUser[]> 
   return (rows as UserDbRow[]).map(toUser);
 }
 
+export async function getUsersByMemberId(memberId: number): Promise<AppUser[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM users WHERE member_id=$1 ORDER BY created_at",
+    [memberId]
+  );
+  return (rows as UserDbRow[]).map(toUser);
+}
+
 export async function createUser(u: {
   username: string;
   passwordHash: string;
@@ -600,6 +621,73 @@ export async function updateUserStatus(
       id,
     ]);
   }
+}
+
+export async function updateUserPassword(id: number, passwordHash: string) {
+  const pool = await ready();
+  await pool.query("UPDATE users SET password_hash=$1 WHERE id=$2", [passwordHash, id]);
+}
+
+// ---------- phone verification (아이디/비밀번호 찾기 SMS 인증) ----------
+function toPhoneVerification(r: {
+  id: number;
+  phone: string;
+  purpose: VerificationPurpose;
+  code: string;
+  attempts: number;
+  consumed: boolean;
+  expires_at: string;
+  created_at: string;
+}): PhoneVerificationRow {
+  return {
+    id: r.id,
+    phone: r.phone,
+    purpose: r.purpose,
+    code: r.code,
+    attempts: r.attempts,
+    consumed: r.consumed,
+    expiresAt: r.expires_at,
+    createdAt: r.created_at,
+  };
+}
+
+export async function createPhoneVerification(v: {
+  phone: string;
+  purpose: VerificationPurpose;
+  code: string;
+  expiresAt: string;
+}): Promise<PhoneVerificationRow> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "INSERT INTO phone_verifications (phone, purpose, code, expires_at) VALUES ($1, $2, $3, $4) RETURNING *",
+    [v.phone, v.purpose, v.code, v.expiresAt]
+  );
+  return toPhoneVerification(rows[0]);
+}
+
+export async function getLatestPhoneVerification(
+  phone: string,
+  purpose: VerificationPurpose
+): Promise<PhoneVerificationRow | null> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT * FROM phone_verifications WHERE phone=$1 AND purpose=$2 ORDER BY id DESC LIMIT 1",
+    [phone, purpose]
+  );
+  return rows[0] ? toPhoneVerification(rows[0]) : null;
+}
+
+export async function incrementPhoneVerificationAttempts(id: number) {
+  const pool = await ready();
+  await pool.query(
+    "UPDATE phone_verifications SET attempts = attempts + 1 WHERE id=$1",
+    [id]
+  );
+}
+
+export async function consumePhoneVerification(id: number) {
+  const pool = await ready();
+  await pool.query("UPDATE phone_verifications SET consumed=true WHERE id=$1", [id]);
 }
 
 // ---------- comments ----------

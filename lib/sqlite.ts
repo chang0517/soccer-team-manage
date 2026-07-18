@@ -11,6 +11,7 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  PhoneVerificationRow,
   Poll,
   PollOption,
   PollVoteRow,
@@ -19,6 +20,7 @@ import type {
   SquadData,
   UserRole,
   UserStatus,
+  VerificationPurpose,
   VoteRow,
   VoteStatus,
 } from "./types";
@@ -150,6 +152,16 @@ function createDb(): Database.Database {
       member_id INTEGER NOT NULL,
       option_id INTEGER NOT NULL,
       PRIMARY KEY (poll_id, member_id, option_id)
+    );
+    CREATE TABLE IF NOT EXISTS phone_verifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      phone TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      code TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      consumed INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
     );
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
@@ -552,6 +564,13 @@ export function listUsersByStatus(status: UserStatus): AppUser[] {
   return rows.map(toUser);
 }
 
+export function getUsersByMemberId(memberId: number): AppUser[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM users WHERE member_id=? ORDER BY created_at")
+    .all(memberId) as UserDbRow[];
+  return rows.map(toUser);
+}
+
 export function createUser(u: {
   username: string;
   passwordHash: string;
@@ -592,6 +611,75 @@ export function updateUserStatus(
       .prepare("UPDATE users SET status=?, member_id=? WHERE id=?")
       .run(status, memberId, id);
   }
+}
+
+export function updateUserPassword(id: number, passwordHash: string) {
+  getDb().prepare("UPDATE users SET password_hash=? WHERE id=?").run(passwordHash, id);
+}
+
+// ---------- phone verification (아이디/비밀번호 찾기 SMS 인증) ----------
+type PhoneVerificationDbRow = {
+  id: number;
+  phone: string;
+  purpose: VerificationPurpose;
+  code: string;
+  attempts: number;
+  consumed: number;
+  expires_at: string;
+  created_at: string;
+};
+
+function toPhoneVerification(r: PhoneVerificationDbRow): PhoneVerificationRow {
+  return {
+    id: r.id,
+    phone: r.phone,
+    purpose: r.purpose,
+    code: r.code,
+    attempts: r.attempts,
+    consumed: !!r.consumed,
+    expiresAt: r.expires_at,
+    createdAt: r.created_at,
+  };
+}
+
+export function createPhoneVerification(v: {
+  phone: string;
+  purpose: VerificationPurpose;
+  code: string;
+  expiresAt: string;
+}): PhoneVerificationRow {
+  const createdAt = new Date().toISOString();
+  const r = getDb()
+    .prepare(
+      "INSERT INTO phone_verifications (phone, purpose, code, expires_at, created_at) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(v.phone, v.purpose, v.code, v.expiresAt, createdAt);
+  const row = getDb()
+    .prepare("SELECT * FROM phone_verifications WHERE id=?")
+    .get(Number(r.lastInsertRowid)) as PhoneVerificationDbRow;
+  return toPhoneVerification(row);
+}
+
+export function getLatestPhoneVerification(
+  phone: string,
+  purpose: VerificationPurpose
+): PhoneVerificationRow | null {
+  const row = getDb()
+    .prepare(
+      "SELECT * FROM phone_verifications WHERE phone=? AND purpose=? ORDER BY id DESC LIMIT 1"
+    )
+    .get(phone, purpose) as PhoneVerificationDbRow | undefined;
+  return row ? toPhoneVerification(row) : null;
+}
+
+export function incrementPhoneVerificationAttempts(id: number) {
+  getDb()
+    .prepare("UPDATE phone_verifications SET attempts = attempts + 1 WHERE id=?")
+    .run(id);
+}
+
+export function consumePhoneVerification(id: number) {
+  getDb().prepare("UPDATE phone_verifications SET consumed=1 WHERE id=?").run(id);
 }
 
 // ---------- comments ----------
