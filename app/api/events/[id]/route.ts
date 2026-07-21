@@ -64,6 +64,17 @@ export async function GET(
   });
 }
 
+// 일정의 이름/유형/일시/장소/상대팀 같은 기본 정보는 운영진만 고칠 수 있다
+// (참석 투표, 스쿼드, 비고란 등 나머지 필드는 기존대로 누구나 PATCH 가능).
+const ADMIN_ONLY_FIELDS = [
+  "title",
+  "type",
+  "date",
+  "time",
+  "location",
+  "opponent",
+] as const;
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -78,6 +89,12 @@ export async function PATCH(
         { status: 403 }
       );
     }
+  }
+  if (ADMIN_ONLY_FIELDS.some((f) => body[f] !== undefined) && !(await requireAdmin())) {
+    return Response.json(
+      { error: "일정 정보는 운영진만 수정할 수 있어요." },
+      { status: 403 }
+    );
   }
   await updateEvent(Number(id), body);
   return Response.json({ ok: true });

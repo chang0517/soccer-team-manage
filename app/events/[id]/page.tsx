@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import TimePicker from "@/components/TimePicker";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
@@ -83,6 +84,16 @@ export default function EventDetailPage({
   const [adminAddPick, setAdminAddPick] = useState("");
   const [voteError, setVoteError] = useState("");
   const isAdmin = user?.role === "admin";
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [infoSaving, setInfoSaving] = useState(false);
+  const [infoForm, setInfoForm] = useState({
+    title: "",
+    type: "match" as "match" | "social",
+    opponent: "",
+    date: "",
+    time: "08:00",
+    location: "",
+  });
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m])),
@@ -552,6 +563,31 @@ export default function EventDetailPage({
     router.push("/schedule");
   };
 
+  const startEditInfo = () => {
+    setInfoForm({
+      title: event.title,
+      type: event.type,
+      opponent: event.opponent,
+      date: event.date,
+      time: event.time,
+      location: event.location,
+    });
+    setEditingInfo(true);
+  };
+
+  const saveInfo = async () => {
+    if (!infoForm.title.trim() || !infoForm.date) return;
+    setInfoSaving(true);
+    await fetch(`/api/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(infoForm),
+    });
+    setInfoSaving(false);
+    setEditingInfo(false);
+    load();
+  };
+
   const nameOf = (mid: number | null) =>
     mid != null ? (memberById.get(mid)?.name ?? "?") : "미정";
 
@@ -587,25 +623,111 @@ export default function EventDetailPage({
           <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-800">
             {dDayLabel(event.date)}
           </span>
-          {user?.role === "admin" && (
-            <button
-              onClick={removeEvent}
-              className="text-xs text-red-500 underline"
-            >
-              일정 삭제
-            </button>
+          {isAdmin && !editingInfo && (
+            <div className="flex gap-3">
+              <button
+                onClick={startEditInfo}
+                className="text-xs font-semibold text-blue-700 underline"
+              >
+                정보 수정
+              </button>
+              <button
+                onClick={removeEvent}
+                className="text-xs text-red-500 underline"
+              >
+                일정 삭제
+              </button>
+            </div>
           )}
         </div>
-        <h1 className="mt-2 text-lg font-bold">
-          {event.title}
-          {event.opponent && (
-            <span className="text-zinc-600"> vs {event.opponent}</span>
-          )}
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          {formatDate(event.date, event.time)}
-          {event.location && ` · ${event.location}`}
-        </p>
+        {editingInfo ? (
+          <div className="mt-3 space-y-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-zinc-500">제목</label>
+                <input
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  value={infoForm.title}
+                  onChange={(e) => setInfoForm({ ...infoForm, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-500">유형</label>
+                <select
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  value={infoForm.type}
+                  onChange={(e) =>
+                    setInfoForm({ ...infoForm, type: e.target.value as "match" | "social" })
+                  }
+                >
+                  <option value="match">경기</option>
+                  <option value="social">모임/행사</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-500">상대팀</label>
+                <input
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  placeholder="경기일 때만"
+                  value={infoForm.opponent}
+                  onChange={(e) => setInfoForm({ ...infoForm, opponent: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-500">날짜</label>
+                <input
+                  type="date"
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  value={infoForm.date}
+                  onChange={(e) => setInfoForm({ ...infoForm, date: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-zinc-500">시간</label>
+                <TimePicker
+                  value={infoForm.time}
+                  onChange={(time) => setInfoForm({ ...infoForm, time })}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-zinc-500">장소</label>
+                <input
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm"
+                  value={infoForm.location}
+                  onChange={(e) => setInfoForm({ ...infoForm, location: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={saveInfo}
+                disabled={infoSaving || !infoForm.title.trim() || !infoForm.date}
+                className="flex-1 rounded-xl bg-blue-700 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {infoSaving ? "저장 중…" : "저장"}
+              </button>
+              <button
+                onClick={() => setEditingInfo(false)}
+                className="rounded-xl border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-600"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <h1 className="mt-2 text-lg font-bold">
+              {event.title}
+              {event.opponent && (
+                <span className="text-zinc-600"> vs {event.opponent}</span>
+              )}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              {formatDate(event.date, event.time)}
+              {event.location && ` · ${event.location}`}
+            </p>
+          </>
+        )}
         {event.scored != null && event.conceded != null && (
           <p className="mt-2 text-2xl font-extrabold text-blue-700">
             {event.scored} : {event.conceded}
