@@ -104,10 +104,11 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
   return mvpCounts;
 }
 
-// 클린시트 기여를 "유닛" 단위로 센다: GK·센터백·윙백은 1유닛, 수비형
-// 미드필더(수미)는 0.5유닛. 점수로 바꿀 때는 이 유닛 수에 단가(RULES.
-// cleanSheetDefence, 1유닛=1.25점)를 곱하기만 하면 되므로, 위치별로 다른
-// 점수 상수를 여러 곳에서 곱하지 않고 가중치 적용 지점을 한 곳으로 모은다.
+// 클린시트를 "쿼터 하나를 지켰으면 1회"로 센다. GK·센터백·윙백은 온전한
+// 한 쿼터를 지키면 1회, 수비형 미드필더(수미)는 그 절반인 0.5회 — 0.5는
+// 오직 수미일 때만 나온다(하프 분할 슬롯은 별개로 그 지분만큼만 받는다).
+// 점수로 바꿀 때는 이 횟수에 쿼터당 단가(RULES.cleanSheetDefence ÷ 쿼터 수)를
+// 곱하기만 하면 되므로, 가중치 적용 지점을 한 곳(computeRanking)으로 모은다.
 function cleanSheetUnitFor(pos: PosGroup): number {
   if (pos === "GK" || pos === "CB" || pos === "WB") return 1;
   if (pos === "DM") return 0.5;
@@ -117,10 +118,10 @@ function cleanSheetUnitFor(pos: PosGroup): number {
 /**
  * 클린시트는 경기 전체가 아니라 "그 쿼터에 실제로 뛰었는지"를 기준으로 준다.
  * 스쿼드(쿼터별 출전 명단)와 쿼터별 기록(recordLog의 쿼터별 실점)이 모두 있는
- * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백·수미에게 (유닛 ÷ 쿼터 수)
- * 만큼 쿼터별로 나눠 준다. 하프 분할 슬롯은 그 절반만 받는다. 점수 단가는
- * 곱하지 않고 유닛 수만 반환한다 — computeRanking이 이 유닛을 cleanCount로
- * 그대로 보여주고, cleanPts(점수) 계산 시에만 단가를 곱한다.
+ * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백에게 1회, 수미에게 0.5회를
+ * 쿼터마다 준다. 하프 분할 슬롯은 그 절반만 받는다. 점수 단가는 곱하지 않고
+ * 횟수만 반환한다 — computeRanking이 이 횟수를 cleanCount로 그대로 보여주고,
+ * cleanPts(점수) 계산 시에만 단가를 곱한다.
  * 스쿼드나 쿼터 기록이 없는 경기(과거 기록 일괄 입력 등)는 이 계산에서
  * 제외되고, computeRanking이 경기 전체 무실점 여부로 대신 처리한다.
  */
@@ -153,7 +154,7 @@ export function computeQuarterCleanUnits(
           if (!pos) continue;
           const unit = cleanSheetUnitFor(pos);
           if (unit === 0) continue;
-          const add = (unit / QUARTER_COUNT) * weight;
+          const add = unit * weight;
           result.set(memberId, (result.get(memberId) ?? 0) + add);
         }
       }
@@ -227,11 +228,12 @@ export function computeRanking(
     row.assists += r.assists;
     // 스쿼드+쿼터별 기록이 있는 경기는 아래 computeQuarterCleanUnits가 쿼터
     // 단위로 따로 계산하므로, 그 데이터가 없는 경기(과거 기록 일괄 입력 등)에
-    // 한해서만 경기 전체 무실점 여부로 클린시트 유닛을 매긴다.
+    // 한해서만 경기 전체 무실점 여부로 클린시트 횟수를 매긴다 — 경기 전체
+    // 무실점이면 4쿼터 전부 지킨 것과 같으므로 QUARTER_COUNT만큼 준다.
     if (r.played && ev && !(ev.squad && ev.recordLog) && ev.conceded === 0) {
       if (r.position === "GK" || r.position === "CB" || r.position === "WB")
-        row.cleanCount += 1;
-      else if (r.position === "DM") row.cleanCount += 0.5;
+        row.cleanCount += QUARTER_COUNT;
+      else if (r.position === "DM") row.cleanCount += QUARTER_COUNT / 2;
     }
   }
 
@@ -248,8 +250,12 @@ export function computeRanking(
   for (const row of out) {
     const bonus = historicalById.get(row.member.id)?.bonusPts ?? 0;
     row.cleanCount = round3(row.cleanCount);
-    // 가중치는 여기서만 적용한다: 유닛 수(cleanCount) × 단가(1유닛=1.25점).
-    row.cleanPts = round3(row.cleanPts + row.cleanCount * RULES.cleanSheetDefence);
+    // 가중치는 여기서만 적용한다: 쿼터당 단가(1쿼터=RULES.cleanSheetDefence÷
+    // 쿼터 수) × 지킨 횟수. 온 경기(4쿼터)를 지키면 결국 1.25점(수미는
+    // 0.625점)으로, 예전 "경기당" 점수 체계와 총점은 동일하게 맞춰진다.
+    row.cleanPts = round3(
+      row.cleanPts + row.cleanCount * (RULES.cleanSheetDefence / QUARTER_COUNT)
+    );
     row.total = round3(
       row.played * RULES.participation +
         row.goals * RULES.goal +
