@@ -177,6 +177,10 @@ export interface RankingRow {
   played: number;
   goals: number;
   assists: number;
+  // 클린시트 기여 횟수(유닛). GK·센터백·윙백은 1유닛, 수비형 미드필더는
+  // 0.5유닛 — 화면에는 이 값을 그대로 보여주고, 점수 계산에서만 cleanPts로
+  // 환산한다(앱 도입 이전 스프레드시트 누적치는 유닛을 알 수 없어 미포함).
+  cleanCount: number;
   cleanPts: number;
   mvpCount: number;
   total: number;

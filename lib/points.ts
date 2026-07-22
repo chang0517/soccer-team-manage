@@ -104,21 +104,27 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
   return mvpCounts;
 }
 
-function cleanSheetRateFor(pos: PosGroup): number {
-  if (pos === "GK" || pos === "CB" || pos === "WB") return RULES.cleanSheetDefence;
-  if (pos === "DM") return RULES.cleanSheetDm;
+// 클린시트 기여를 "유닛" 단위로 센다: GK·센터백·윙백은 1유닛, 수비형
+// 미드필더(수미)는 0.5유닛. 점수로 바꿀 때는 이 유닛 수에 단가(RULES.
+// cleanSheetDefence, 1유닛=1.25점)를 곱하기만 하면 되므로, 위치별로 다른
+// 점수 상수를 여러 곳에서 곱하지 않고 가중치 적용 지점을 한 곳으로 모은다.
+function cleanSheetUnitFor(pos: PosGroup): number {
+  if (pos === "GK" || pos === "CB" || pos === "WB") return 1;
+  if (pos === "DM") return 0.5;
   return 0;
 }
 
 /**
  * 클린시트는 경기 전체가 아니라 "그 쿼터에 실제로 뛰었는지"를 기준으로 준다.
  * 스쿼드(쿼터별 출전 명단)와 쿼터별 기록(recordLog의 쿼터별 실점)이 모두 있는
- * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백·수미에게 (풀 클린시트
- * 점수 ÷ 쿼터 수)만큼 쿼터별로 나눠 준다. 하프 분할 슬롯은 그 절반만 받는다.
+ * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백·수미에게 (유닛 ÷ 쿼터 수)
+ * 만큼 쿼터별로 나눠 준다. 하프 분할 슬롯은 그 절반만 받는다. 점수 단가는
+ * 곱하지 않고 유닛 수만 반환한다 — computeRanking이 이 유닛을 cleanCount로
+ * 그대로 보여주고, cleanPts(점수) 계산 시에만 단가를 곱한다.
  * 스쿼드나 쿼터 기록이 없는 경기(과거 기록 일괄 입력 등)는 이 계산에서
  * 제외되고, computeRanking이 경기 전체 무실점 여부로 대신 처리한다.
  */
-export function computeQuarterCleanPts(
+export function computeQuarterCleanUnits(
   events: EventItem[],
   members: Member[]
 ): Map<number, number> {
@@ -145,9 +151,9 @@ export function computeQuarterCleanPts(
           if (!member) continue;
           const pos = slotPositionFor(slot.slotId, member);
           if (!pos) continue;
-          const rate = cleanSheetRateFor(pos);
-          if (rate === 0) continue;
-          const add = (rate / QUARTER_COUNT) * weight;
+          const unit = cleanSheetUnitFor(pos);
+          if (unit === 0) continue;
+          const add = (unit / QUARTER_COUNT) * weight;
           result.set(memberId, (result.get(memberId) ?? 0) + add);
         }
       }
@@ -198,6 +204,10 @@ export function computeRanking(
           played: h?.games ?? 0,
           goals: h?.goals ?? 0,
           assists: h?.assists ?? 0,
+          // 앱 도입 이전 스프레드시트 누적치(h?.cleanPts)는 이미 점수로만
+          // 남아있어 유닛으로 되돌릴 수 없으므로 cleanPts의 시작값으로만
+          // 반영하고, cleanCount(화면 표시용)는 앱에서 추적한 경기부터 센다.
+          cleanCount: 0,
           cleanPts: h?.cleanPts ?? 0,
           mvpCount: mvpCounts.get(m.id) ?? 0,
           total: 0,
@@ -215,19 +225,19 @@ export function computeRanking(
     if (r.played) row.played += 1;
     row.goals += r.goals;
     row.assists += r.assists;
-    // 스쿼드+쿼터별 기록이 있는 경기는 아래 computeQuarterCleanPts가 쿼터
+    // 스쿼드+쿼터별 기록이 있는 경기는 아래 computeQuarterCleanUnits가 쿼터
     // 단위로 따로 계산하므로, 그 데이터가 없는 경기(과거 기록 일괄 입력 등)에
-    // 한해서만 경기 전체 무실점 여부로 클린시트를 매긴다.
+    // 한해서만 경기 전체 무실점 여부로 클린시트 유닛을 매긴다.
     if (r.played && ev && !(ev.squad && ev.recordLog) && ev.conceded === 0) {
       if (r.position === "GK" || r.position === "CB" || r.position === "WB")
-        row.cleanPts += RULES.cleanSheetDefence;
-      else if (r.position === "DM") row.cleanPts += RULES.cleanSheetDm;
+        row.cleanCount += 1;
+      else if (r.position === "DM") row.cleanCount += 0.5;
     }
   }
 
-  for (const [memberId, pts] of computeQuarterCleanPts(scopedEvents, members)) {
+  for (const [memberId, units] of computeQuarterCleanUnits(scopedEvents, members)) {
     const row = rows.get(memberId);
-    if (row) row.cleanPts += pts;
+    if (row) row.cleanCount += units;
   }
 
   // 소수 가중치(1.5·1.4·1.25·0.625)를 더하다 보면 부동소수점 오차로
@@ -237,7 +247,9 @@ export function computeRanking(
   const out = [...rows.values()];
   for (const row of out) {
     const bonus = historicalById.get(row.member.id)?.bonusPts ?? 0;
-    row.cleanPts = round3(row.cleanPts);
+    row.cleanCount = round3(row.cleanCount);
+    // 가중치는 여기서만 적용한다: 유닛 수(cleanCount) × 단가(1유닛=1.25점).
+    row.cleanPts = round3(row.cleanPts + row.cleanCount * RULES.cleanSheetDefence);
     row.total = round3(
       row.played * RULES.participation +
         row.goals * RULES.goal +

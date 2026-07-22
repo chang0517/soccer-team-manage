@@ -12,13 +12,13 @@ const TABS: { key: PosCategory | "ALL"; label: string }[] = [
   { key: "DEF", label: "수비" },
 ];
 
-type SortKey = "played" | "goals" | "assists" | "cleanPts" | "mvpCount" | "total";
+type SortKey = "played" | "goals" | "assists" | "cleanCount" | "mvpCount" | "total";
 
 const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "played", label: "출전" },
   { key: "goals", label: "골" },
   { key: "assists", label: "어시" },
-  { key: "cleanPts", label: "CS" },
+  { key: "cleanCount", label: "CS" },
   { key: "mvpCount", label: "MVP" },
   { key: "total", label: "총점" },
 ];
@@ -69,7 +69,8 @@ export default function RankingPage() {
       <h1 className="text-lg font-bold">시즌 랭킹</h1>
       <p className="rounded-xl bg-zinc-100 px-3 py-2 text-xs text-zinc-500">
         출전 1.5점 · 골 1.4점 · 어시스트 1.25점 · 클린시트 시 GK·센터백·윙백
-        1.25점, 수비형 미드필더 0.625점
+        1.25점, 수비형 미드필더 0.625점 (CS 열은 점수가 아니라 클린시트 기여
+        횟수예요 — 수비형 미드필더는 0.5회로 계산돼요)
       </p>
 
       <div className="flex flex-wrap gap-1.5">
@@ -187,7 +188,7 @@ export default function RankingPage() {
                 <td className="px-2 py-2 text-center">{r.played}</td>
                 <td className="px-2 py-2 text-center">{r.goals}</td>
                 <td className="px-2 py-2 text-center">{r.assists}</td>
-                <td className="px-2 py-2 text-center">{r.cleanPts}</td>
+                <td className="px-2 py-2 text-center">{r.cleanCount}</td>
                 <td className="px-2 py-2 text-center">{r.mvpCount}</td>
                 <td className="px-3 py-2 text-right font-bold text-blue-700">
                   {r.total}
