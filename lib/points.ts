@@ -198,6 +198,13 @@ export function computeRanking(
   const rows = new Map<number, RankingRow>(
     members.map((m) => {
       const h = historicalById.get(m.id);
+      // 앱 도입 이전 스프레드시트 누적치(h.cleanPts)는 "경기당" 단가로 이미
+      // 점수화된 값이라, 같은 단가로 나눠서 쿼터 단위 횟수로 되돌린다
+      // (예: 1.25점 → 1유닛 → 4쿼터). 이렇게 해야 CS 열이 과거분도 빠짐없이
+      // 보여주면서 cleanCount 하나로 cleanPts를 온전히 계산할 수 있다.
+      const historicalCleanCount = h?.cleanPts
+        ? (h.cleanPts / RULES.cleanSheetDefence) * QUARTER_COUNT
+        : 0;
       return [
         m.id,
         {
@@ -205,11 +212,8 @@ export function computeRanking(
           played: h?.games ?? 0,
           goals: h?.goals ?? 0,
           assists: h?.assists ?? 0,
-          // 앱 도입 이전 스프레드시트 누적치(h?.cleanPts)는 이미 점수로만
-          // 남아있어 유닛으로 되돌릴 수 없으므로 cleanPts의 시작값으로만
-          // 반영하고, cleanCount(화면 표시용)는 앱에서 추적한 경기부터 센다.
-          cleanCount: 0,
-          cleanPts: h?.cleanPts ?? 0,
+          cleanCount: historicalCleanCount,
+          cleanPts: 0,
           mvpCount: mvpCounts.get(m.id) ?? 0,
           total: 0,
           streak: streaks.get(m.id)?.count ?? 0,
@@ -251,11 +255,10 @@ export function computeRanking(
     const bonus = historicalById.get(row.member.id)?.bonusPts ?? 0;
     row.cleanCount = round3(row.cleanCount);
     // 가중치는 여기서만 적용한다: 쿼터당 단가(1쿼터=RULES.cleanSheetDefence÷
-    // 쿼터 수) × 지킨 횟수. 온 경기(4쿼터)를 지키면 결국 1.25점(수미는
-    // 0.625점)으로, 예전 "경기당" 점수 체계와 총점은 동일하게 맞춰진다.
-    row.cleanPts = round3(
-      row.cleanPts + row.cleanCount * (RULES.cleanSheetDefence / QUARTER_COUNT)
-    );
+    // 쿼터 수) × 지킨 횟수(과거 스프레드시트 누적치 포함). 온 경기(4쿼터)를
+    // 지키면 결국 1.25점(수미는 0.625점)으로, 예전 "경기당" 점수 체계와
+    // 총점은 동일하게 맞춰진다.
+    row.cleanPts = round3(row.cleanCount * (RULES.cleanSheetDefence / QUARTER_COUNT));
     row.total = round3(
       row.played * RULES.participation +
         row.goals * RULES.goal +
