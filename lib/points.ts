@@ -104,10 +104,8 @@ export function computeMvpCounts(mvpVotes: MvpVoteRow[]): Map<number, number> {
   return mvpCounts;
 }
 
-// 클린시트 기여를 "경기 단위" 횟수로 센다: GK·센터백·윙백이 경기 하나를
-// 통째로 지키면 1회, 수비형 미드필더(수미)는 그 절반인 0.5회 — 0.5는 오직
-// 수미일 때만 나온다. 점수로 바꿀 때는 이 횟수에 단가(RULES.cleanSheetDefence,
-// 1회=1.25점)를 곱하기만 하면 되므로, 가중치 적용 지점을 한 곳으로 모은다.
+// GK·센터백·윙백은 한 쿼터(또는 경기 하나를 통째로) 지키면 1유닛, 수비형
+// 미드필더(수미)는 그 절반인 0.5유닛 — 0.5는 오직 수미일 때만 나온다.
 function cleanSheetUnitFor(pos: PosGroup): number {
   if (pos === "GK" || pos === "CB" || pos === "WB") return 1;
   if (pos === "DM") return 0.5;
@@ -117,11 +115,12 @@ function cleanSheetUnitFor(pos: PosGroup): number {
 /**
  * 클린시트는 경기 전체가 아니라 "그 쿼터에 실제로 뛰었는지"를 기준으로 준다.
  * 스쿼드(쿼터별 출전 명단)와 쿼터별 기록(recordLog의 쿼터별 실점)이 모두 있는
- * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백·수미에게 (경기 단위 횟수 ÷
- * 쿼터 수)만큼 쿼터별로 나눠 준다 — 4쿼터를 전부 지키면 합쳐서 1회(수미는
- * 0.5회)가 된다. 하프 분할 슬롯은 그 절반만 받는다. 점수 단가는 곱하지 않고
- * 횟수만 반환한다 — computeRanking이 이 횟수를 cleanCount로 그대로 보여주고,
- * cleanPts(점수) 계산 시에만 단가를 곱한다.
+ * 경기에 한해, 무실점인 쿼터에 뛴 GK·센터백·윙백에게 1유닛, 수미에게 0.5유닛을
+ * "그 쿼터에 뛴 것만으로" 쿼터마다 준다(로테이션으로 그 경기에 딱 한 쿼터만
+ * 뛰었어도 그 쿼터는 온전히 인정). 하프 분할 슬롯은 그 절반만 받는다.
+ * 이 유닛은 화면 표시(cleanCount)에는 그대로 쓰이지만, 점수(cleanPts)로 바꿀
+ * 때는 computeRanking이 쿼터당 단가(경기 단가 ÷ 쿼터 수)를 곱해서, 온
+ * 경기(4쿼터)를 다 지킨 경우의 총점이 예전 "경기 단위" 점수와 같아지게 한다.
  * 스쿼드나 쿼터 기록이 없는 경기(과거 기록 일괄 입력 등)는 이 계산에서
  * 제외되고, computeRanking이 경기 전체 무실점 여부로 대신 처리한다.
  */
@@ -154,7 +153,7 @@ export function computeQuarterCleanUnits(
           if (!pos) continue;
           const unit = cleanSheetUnitFor(pos);
           if (unit === 0) continue;
-          const add = (unit / QUARTER_COUNT) * weight;
+          const add = unit * weight;
           result.set(memberId, (result.get(memberId) ?? 0) + add);
         }
       }
@@ -200,8 +199,8 @@ export function computeRanking(
       const h = historicalById.get(m.id);
       // 앱 도입 이전 스프레드시트 누적치(h.cleanPts)는 "경기당" 단가로 이미
       // 점수화된 값이라, 같은 단가로 나눠서 경기 단위 횟수로 되돌린다(예:
-      // 1.25점 → 1회). 이렇게 해야 CS 열이 과거분도 빠짐없이 보여주면서
-      // cleanCount 하나로 cleanPts를 온전히 계산할 수 있다.
+      // 1.25점 → 1회). cleanPts는 그 원래 점수 그대로 시작값으로 둔다(단가가
+      // 이미 적용된 값이라 다시 곱할 필요가 없다).
       const historicalCleanCount = h?.cleanPts
         ? h.cleanPts / RULES.cleanSheetDefence
         : 0;
@@ -213,7 +212,7 @@ export function computeRanking(
           goals: h?.goals ?? 0,
           assists: h?.assists ?? 0,
           cleanCount: historicalCleanCount,
-          cleanPts: 0,
+          cleanPts: h?.cleanPts ?? 0,
           mvpCount: mvpCounts.get(m.id) ?? 0,
           total: 0,
           streak: streaks.get(m.id)?.count ?? 0,
@@ -232,17 +231,29 @@ export function computeRanking(
     row.assists += r.assists;
     // 스쿼드+쿼터별 기록이 있는 경기는 아래 computeQuarterCleanUnits가 쿼터
     // 단위로 따로 계산하므로, 그 데이터가 없는 경기(과거 기록 일괄 입력 등)에
-    // 한해서만 경기 전체 무실점 여부로 클린시트 횟수를 매긴다.
+    // 한해서만 경기 전체 무실점 여부로 "경기 단위" 횟수·점수를 매긴다.
     if (r.played && ev && !(ev.squad && ev.recordLog) && ev.conceded === 0) {
-      if (r.position === "GK" || r.position === "CB" || r.position === "WB")
+      if (r.position === "GK" || r.position === "CB" || r.position === "WB") {
         row.cleanCount += 1;
-      else if (r.position === "DM") row.cleanCount += 0.5;
+        row.cleanPts += RULES.cleanSheetDefence;
+      } else if (r.position === "DM") {
+        row.cleanCount += 0.5;
+        row.cleanPts += RULES.cleanSheetDm;
+      }
     }
   }
 
+  // 쿼터별로 실제 뛴 쿼터마다 화면 표시용 횟수(cleanCount)는 그대로 1유닛씩
+  // 쌓지만, 점수(cleanPts)는 쿼터당 단가(경기 단가 ÷ 쿼터 수)로 정규화해서
+  // 더한다 — 그래야 로테이션으로 쿼터 일부만 뛰어도 "그 쿼터는 지켰다"고
+  // 온전히 표시되면서, 온 경기(4쿼터)를 다 지킨 경우의 점수는 예전 "경기
+  // 단위" 점수(1.25점/0.625점)와 정확히 같아진다.
   for (const [memberId, units] of computeQuarterCleanUnits(scopedEvents, members)) {
     const row = rows.get(memberId);
-    if (row) row.cleanCount += units;
+    if (row) {
+      row.cleanCount += units;
+      row.cleanPts += units * (RULES.cleanSheetDefence / QUARTER_COUNT);
+    }
   }
 
   // 소수 가중치(1.5·1.4·1.25·0.625)를 더하다 보면 부동소수점 오차로
@@ -253,9 +264,7 @@ export function computeRanking(
   for (const row of out) {
     const bonus = historicalById.get(row.member.id)?.bonusPts ?? 0;
     row.cleanCount = round3(row.cleanCount);
-    // 가중치는 여기서만 적용한다: 지킨 횟수(과거 스프레드시트 누적치 포함)
-    // × 경기당 단가(1회=1.25점, 수미는 0.5회=0.625점).
-    row.cleanPts = round3(row.cleanCount * RULES.cleanSheetDefence);
+    row.cleanPts = round3(row.cleanPts);
     row.total = round3(
       row.played * RULES.participation +
         row.goals * RULES.goal +
