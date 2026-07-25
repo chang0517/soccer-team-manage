@@ -165,7 +165,7 @@ export default function EventDetailPage({
   const myStatus =
     votes.find((v) => v.memberId === myId)?.status ?? null;
   const nonVoters = members.filter(
-    (m) => !votes.some((v) => v.memberId === m.id)
+    (m) => !m.isGuest && !votes.some((v) => v.memberId === m.id)
   );
   const statusOf = (memberId: number): VoteStatus | null =>
     votes.find((v) => v.memberId === memberId)?.status ?? null;
