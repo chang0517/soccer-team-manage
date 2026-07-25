@@ -94,6 +94,8 @@ export default function EventDetailPage({
     time: "08:00",
     location: "",
   });
+  const [notifying, setNotifying] = useState(false);
+  const [notifyResult, setNotifyResult] = useState("");
 
   const memberById = useMemo(
     () => new Map(members.map((m) => [m.id, m])),
@@ -588,6 +590,25 @@ export default function EventDetailPage({
     load();
   };
 
+  const notifyNonVoters = async () => {
+    if (!confirm(`미투표자 ${nonVoters.length}명에게 투표 독려 문자를 보낼까요?`)) return;
+    setNotifying(true);
+    setNotifyResult("");
+    const res = await fetch(`/api/events/${id}/notify-nonvoters`, { method: "POST" });
+    const data = await res.json();
+    setNotifying(false);
+    if (!res.ok) {
+      setNotifyResult(data.error || "문자 발송에 실패했어요.");
+      return;
+    }
+    const parts: string[] = [];
+    if (data.sent.length > 0) parts.push(`${data.sent.length}명 발송 완료`);
+    if (data.skippedNoPhone.length > 0)
+      parts.push(`전화번호 없음 ${data.skippedNoPhone.length}명 제외`);
+    if (data.failed.length > 0) parts.push(`발송 실패 ${data.failed.length}명`);
+    setNotifyResult(parts.join(" · ") || "보낼 대상이 없어요.");
+  };
+
   const nameOf = (mid: number | null) =>
     mid != null ? (memberById.get(mid)?.name ?? "?") : "미정";
 
@@ -795,6 +816,20 @@ export default function EventDetailPage({
             <p className="text-xs text-zinc-400">
               미투표 {nonVoters.length}명: {nonVoters.map((m) => m.name).join(", ")}
             </p>
+          )}
+          {isAdmin && nonVoters.length > 0 && (
+            <div className="mt-1.5">
+              <button
+                onClick={notifyNonVoters}
+                disabled={notifying}
+                className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                {notifying ? "발송 중…" : "미투표자에게 문자 보내기"}
+              </button>
+              {notifyResult && (
+                <p className="mt-1 text-xs text-zinc-500">{notifyResult}</p>
+              )}
+            </div>
           )}
         </div>
 
