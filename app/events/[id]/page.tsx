@@ -11,8 +11,10 @@ import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
 import { ATTEND_CAP, isVotingClosed } from "@/lib/rules";
 import {
   FORMATION_SLOTS,
+  isSquadConfirmed,
   QUARTER_COUNT,
   SLOT_CATEGORY_COLORS,
+  SQUAD_APPROVAL_THRESHOLD,
   slotDisplayLabel,
   slotPositionFor,
 } from "@/lib/squad";
@@ -172,8 +174,18 @@ export default function EventDetailPage({
   const statusOf = (memberId: number): VoteStatus | null =>
     votes.find((v) => v.memberId === memberId)?.status ?? null;
   const voteClosed = isVotingClosed(daysUntil(event.date), counts.attend);
-  const isSquadLocked = !!event.squad?.confirmed;
+  const isSquadLocked = isSquadConfirmed(event.squad);
   const canEditSquad = !isSquadLocked || isAdmin;
+  const squadApprovedBy = event.squad?.approvedBy ?? [];
+  const iApprovedSquad = myId != null && squadApprovedBy.includes(myId);
+  const hasAbsenteeInSquad =
+    event.squad?.quarters.some((q) =>
+      q.starters.some(
+        (s) =>
+          (s.memberId != null && statusOf(s.memberId) === "absent") ||
+          (s.memberId2 != null && statusOf(s.memberId2) === "absent")
+      )
+    ) ?? false;
 
   const mvpTally = (() => {
     const counts = new Map<number, number>();
@@ -358,18 +370,57 @@ export default function EventDetailPage({
     load();
   };
 
-  const setSquadConfirmed = async (confirmed: boolean) => {
+  // 운영진 전용 비상 해제 — 승인 수와 상관없이 즉시 잠금을 풀고 승인 목록도
+  // 비운다(다시 확정하려면 처음부터 새로 승인을 모아야 한다).
+  const unlockSquad = async () => {
     if (!event.squad) return;
     await fetch(`/api/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ squad: { ...event.squad, confirmed } }),
+      body: JSON.stringify({
+        squad: { ...event.squad, confirmed: false, approvedBy: [] },
+      }),
+    });
+    load();
+  };
+
+  // 내가 이미 승인했으면 취소, 아니면 승인 추가. SQUAD_APPROVAL_THRESHOLD명
+  // 이상 모이면 isSquadConfirmed가 자동으로 확정 상태로 인식한다.
+  const toggleSquadApproval = async () => {
+    await fetch(`/api/events/${id}/squad/approve`, { method: "POST" });
+    load();
+  };
+
+  // 불참으로 바뀐 멤버가 스쿼드에 남아있으면 그 자리에서만 빼낸다(다른 슬롯엔
+  // 영향 없음). 승인은 스쿼드 구성이 바뀌는 것이므로 재승인이 필요하도록 비운다.
+  const removeAbsenteesFromSquad = async () => {
+    if (!event.squad) return;
+    const isAbsent = (mid: number | null | undefined) =>
+      mid != null && statusOf(mid) === "absent";
+    const quarters = event.squad.quarters.map((q) => {
+      const starters = q.starters.map((s) => {
+        const patch: Partial<{ memberId: number | null; memberId2: number | null }> = {};
+        if (isAbsent(s.memberId)) patch.memberId = null;
+        if (isAbsent(s.memberId2)) patch.memberId2 = null;
+        return Object.keys(patch).length ? { ...s, ...patch } : s;
+      });
+      const starterIds = new Set(
+        starters.flatMap((s) => [s.memberId, s.memberId2 ?? null]).filter((v): v is number => v != null)
+      );
+      return { starters, bench: attendIds.filter((mid) => !starterIds.has(mid)) };
+    });
+    const squad: SquadData = { ...event.squad, quarters, confirmed: false, approvedBy: [] };
+    await fetch(`/api/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ squad }),
     });
     load();
   };
 
   // 슬롯 배정을 바꾸는 모든 조작(단일 배정, 하프 분할, 드래그 맞교체, 벤치 교체)의
   // 공통 진입점. starters 배열을 변형하는 함수를 받아 벤치를 재계산하고 저장한다.
+  // 스쿼드 구성이 바뀌는 조작이므로 확정/승인 상태는 초기화한다(재승인 필요).
   const updateStarters = async (
     quarterIdx: number,
     transform: (starters: SquadData["quarters"][number]["starters"]) => SquadData["quarters"][number]["starters"]
@@ -383,7 +434,7 @@ export default function EventDetailPage({
       );
       return { starters, bench: attendIds.filter((mid) => !starterIds.has(mid)) };
     });
-    const squad: SquadData = { ...event.squad, quarters };
+    const squad: SquadData = { ...event.squad, quarters, confirmed: false, approvedBy: [] };
     await fetch(`/api/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1027,14 +1078,31 @@ export default function EventDetailPage({
                   🔒 확정된 스쿼드
                 </span>
               )}
+              {!isSquadLocked && squadApprovedBy.length > 0 && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                  승인 {squadApprovedBy.length}/{SQUAD_APPROVAL_THRESHOLD}
+                </span>
+              )}
             </div>
-            <div className="flex shrink-0 gap-1.5">
+            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+              {isAdmin && event.squad && hasAbsenteeInSquad && (
+                <button
+                  onClick={removeAbsenteesFromSquad}
+                  className="rounded-xl bg-red-500 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  불참자 정리
+                </button>
+              )}
               {isAdmin && event.squad && (
                 <button
-                  onClick={() => setSquadConfirmed(!isSquadLocked)}
-                  className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white"
+                  onClick={isSquadLocked ? unlockSquad : toggleSquadApproval}
+                  disabled={!isSquadLocked && !myId}
+                  title={!isSquadLocked && !myId ? "멤버 프로필과 연결돼야 승인할 수 있어요" : undefined}
+                  className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
                 >
-                  {isSquadLocked ? "확정 해제" : "확정"}
+                  {isSquadLocked
+                    ? "확정 해제"
+                    : `${iApprovedSquad ? "승인 취소" : "승인"} (${squadApprovedBy.length}/${SQUAD_APPROVAL_THRESHOLD})`}
                 </button>
               )}
               {canEditSquad && (
@@ -1047,10 +1115,16 @@ export default function EventDetailPage({
               )}
             </div>
           </div>
+          {squadApprovedBy.length > 0 && (
+            <p className="mb-2 text-xs text-zinc-400">
+              승인: {squadApprovedBy.map((mid) => memberById.get(mid)?.name ?? "?").join(", ")}
+            </p>
+          )}
           <p className="mb-3 text-xs text-zinc-400">
             경기 3일 전이 되면 참석 투표 기준으로 쿼터별(1~4쿼터) 스쿼드가
             자동 생성돼요. 포지션은 각자 멤버 탭의 1·2순위 선호를, 출전
-            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요.
+            기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요. 운영진
+            {SQUAD_APPROVAL_THRESHOLD}명 이상이 승인하면 자동으로 확정돼요.
             {canEditSquad
               ? " 아래 선수 아이콘을 드래그해서 다른 자리와 맞바꿀 수 있어요."
               : " 스쿼드가 확정돼서 운영진만 수정할 수 있어요."}

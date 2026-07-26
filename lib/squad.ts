@@ -3,6 +3,18 @@ import { POS_SHORT } from "./types";
 
 export const QUARTER_COUNT = 4;
 
+// 깃헙 PR 승인처럼, 운영진이 이 인원수 이상 승인해야 스쿼드가 확정(잠금)된다.
+export const SQUAD_APPROVAL_THRESHOLD = 3;
+
+// 스쿼드가 확정(잠금) 상태인지 판단한다. 예전 방식(confirmed 플래그를 운영진
+// 1명이 직접 켬)으로 이미 확정된 과거 데이터는 그대로 확정 상태로 인정하고,
+// 그 외에는 approvedBy에 쌓인 운영진 승인 수로 판단한다.
+export function isSquadConfirmed(squad: SquadData | null | undefined): boolean {
+  if (!squad) return false;
+  if (squad.confirmed) return true;
+  return (squad.approvedBy?.length ?? 0) >= SQUAD_APPROVAL_THRESHOLD;
+}
+
 export type SlotCategory = "GK" | "DF" | "MF" | "FW";
 
 export interface SlotDef {

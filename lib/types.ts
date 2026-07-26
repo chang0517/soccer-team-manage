@@ -103,8 +103,14 @@ export interface QuarterSquad {
 export interface SquadData {
   quarters: QuarterSquad[]; // 1~4쿼터, 각각 독립된 스쿼드
   generatedAt: string;
-  // 운영진이 "확정"을 누르면 true — 이후엔 운영진만 스쿼드를 바꿀 수 있다.
+  // 예전 방식(운영진 1명이 누르면 즉시 확정)의 흔적 — 새로 생기는 스쿼드는
+  // 더 이상 이 필드를 쓰지 않고 approvedBy 기반으로 확정 여부를 계산하지만,
+  // 이미 이 값으로 확정된 과거 데이터는 계속 확정 상태로 유지하기 위해 남겨둔다.
   confirmed?: boolean;
+  // 이 스쿼드를 승인한 운영진들의 memberId. SQUAD_APPROVAL_THRESHOLD(3)명
+  // 이상 모이면 자동으로 확정(잠금)된다 — 깃헙 PR 승인과 비슷한 방식.
+  // 스쿼드 구성이 바뀌면(재생성·슬롯 수정 등) 다시 비워져서 재승인이 필요하다.
+  approvedBy?: number[];
 }
 
 export interface QuarterGoalEntry {

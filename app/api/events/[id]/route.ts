@@ -9,7 +9,7 @@ import {
   updateEvent,
 } from "@/lib/db";
 import { daysUntil } from "@/lib/format";
-import { FORMATION_SLOTS, generateSquad } from "@/lib/squad";
+import { FORMATION_SLOTS, generateSquad, isSquadConfirmed } from "@/lib/squad";
 
 const CURRENT_SLOT_IDS = new Set(FORMATION_SLOTS.map((s) => s.id));
 
@@ -32,7 +32,7 @@ export async function GET(
   // (단, 운영진이 확정한 스쿼드는 그대로 둔다).
   if (
     event.squad &&
-    !event.squad.confirmed &&
+    !isSquadConfirmed(event.squad) &&
     event.squad.quarters.some((q) =>
       q.starters.some((s) => !CURRENT_SLOT_IDS.has(s.slotId))
     )
@@ -83,7 +83,7 @@ export async function PATCH(
   const body = await request.json();
   if (body.squad !== undefined) {
     const current = await getEvent(Number(id));
-    if (current?.squad?.confirmed && !(await requireAdmin())) {
+    if (isSquadConfirmed(current?.squad) && !(await requireAdmin())) {
       return Response.json(
         { error: "확정된 스쿼드는 운영진만 수정할 수 있어요." },
         { status: 403 }
