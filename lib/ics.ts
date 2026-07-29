@@ -71,3 +71,13 @@ export function eventsToIcs(events: EventItem[]): string {
   lines.push("END:VCALENDAR");
   return lines.join("\r\n");
 }
+
+export function icsFeedResponse(events: EventItem[]): Response {
+  return new Response(eventsToIcs(events), {
+    headers: {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": 'inline; filename="raven-fc.ics"',
+      "Cache-Control": "no-store",
+    },
+  });
+}
