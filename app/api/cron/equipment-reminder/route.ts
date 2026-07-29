@@ -1,15 +1,15 @@
 import { listEvents, listUsersByStatus, updateEvent } from "@/lib/db";
 import { todayStr } from "@/lib/format";
 import { sendPushToMember } from "@/lib/push";
-import { MATCH_DURATION_HOURS } from "@/lib/rules";
+import { EQUIPMENT_REMINDER_DELAY_MINUTES, MATCH_DURATION_HOURS } from "@/lib/rules";
 
 // Vercel cron이 매일 저녁(21:00 KST) 한 번 호출 — Hobby 플랜은 하루 1번
 // 이상 도는 크론을 못 써서 이 시각 하나로 그날 경기를 다 잡는다. 경기 당일,
-// 시작 시각 + MATCH_DURATION_HOURS가 지난 경기 중 비품(공가방1·공가방2·
-// 물/음료·아이스박스) 담당자 4칸이 아직 다 안 채워졌으면, 아직 알림을 안
-// 보낸 경기에 한해 운영진 전원에게 입력 요청 푸시를 보낸다. "경기 당일"로
-// 제한해서, 이 기능 도입 전부터 있던 과거 경기들이 한꺼번에 알림을 쏟아내는
-// 일이 없게 한다.
+// 경기 종료(시작 시각 + MATCH_DURATION_HOURS) 후 EQUIPMENT_REMINDER_DELAY_MINUTES가
+// 더 지난 경기 중 비품(공가방1·공가방2·물/음료·아이스박스) 담당자 4칸이
+// 아직 다 안 채워졌으면, 아직 알림을 안 보낸 경기에 한해 운영진 전원에게
+// 입력 요청 푸시를 보낸다. "경기 당일"로 제한해서, 이 기능 도입 전부터
+// 있던 과거 경기들이 한꺼번에 알림을 쏟아내는 일이 없게 한다.
 export async function GET() {
   const today = todayStr();
   const [events, adminUsers] = await Promise.all([
@@ -32,7 +32,9 @@ export async function GET() {
       continue;
     }
     const start = new Date(`${ev.date}T${ev.time}:00+09:00`).getTime();
-    if (Number.isNaN(start) || now < start + MATCH_DURATION_HOURS * 3600_000) continue;
+    const dueAt =
+      start + MATCH_DURATION_HOURS * 3600_000 + EQUIPMENT_REMINDER_DELAY_MINUTES * 60_000;
+    if (Number.isNaN(start) || now < dueAt) continue;
 
     const allFilled =
       ev.dutyOffense && ev.dutyDefense && ev.waterDuty && ev.iceboxDuty;
