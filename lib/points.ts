@@ -1,5 +1,5 @@
 import { HISTORICAL_BASELINE_SEASON, seasonOf } from "./season";
-import { QUARTER_COUNT, slotPositionFor } from "./squad";
+import { QUARTER_COUNT, slotFinalPosition } from "./squad";
 import type {
   EventItem,
   HistoricalStats,
@@ -149,7 +149,7 @@ export function computeQuarterCleanUnits(
         for (const { memberId, weight } of shares) {
           const member = memberById.get(memberId);
           if (!member) continue;
-          const pos = slotPositionFor(slot.slotId, member);
+          const pos = slotFinalPosition(slot.slotId);
           if (!pos) continue;
           const unit = cleanSheetUnitFor(pos);
           if (unit === 0) continue;

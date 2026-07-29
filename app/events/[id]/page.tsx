@@ -16,7 +16,7 @@ import {
   SLOT_CATEGORY_COLORS,
   SQUAD_APPROVAL_THRESHOLD,
   slotDisplayLabel,
-  slotPositionFor,
+  slotFinalPosition,
 } from "@/lib/squad";
 import { POS_CATEGORY, POS_CATEGORY_LABELS, POS_GROUPS } from "@/lib/types";
 import type {
@@ -114,7 +114,7 @@ export default function EventDetailPage({
           for (const mid of [s.memberId, s.memberId2]) {
             if (mid == null || map.has(mid)) continue;
             const mem = members.find((m) => m.id === mid);
-            if (mem) map.set(mid, slotPositionFor(s.slotId, mem));
+            if (mem) map.set(mid, slotFinalPosition(s.slotId));
           }
         }
       }
@@ -275,7 +275,7 @@ export default function EventDetailPage({
         for (const mid of ids) {
           const mem = memberById.get(mid);
           if (!mem) continue;
-          const pos = slotPositionFor(slot.slotId, mem);
+          const pos = slotFinalPosition(slot.slotId);
           if (pos === "GK" || pos === "CB" || pos === "WB" || pos === "DM") {
             names.push(mem.name);
           }

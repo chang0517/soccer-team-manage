@@ -79,6 +79,21 @@ export function slotPositionFor(slotId: string, member: Member): PosGroup | "" {
   return accepts[0] ?? "";
 }
 
+/**
+ * 클린시트 판정용 "최종 확정 포지션". 선수의 선호 포지션과 무관하게, 그 쿼터에
+ * 실제로 배정된 슬롯 자체가 무엇인지로만 판단한다 — LCM·RCM은 DM·AM을 겸업으로
+ * 받는 슬롯이라 선수의 1순위가 DM(수미)이어도, 그 쿼터의 확정 포지션은 항상
+ * CM이라 클린시트 대상(GK·CB·WB·DM)에 들지 않는다. 오직 슬롯 id가 "DM"인
+ * 경우에만 수미로 인정한다.
+ */
+export function slotFinalPosition(slotId: string): PosGroup | "" {
+  if (slotId === "GK") return "GK";
+  if (slotId === "LB" || slotId === "RB") return "WB";
+  if (slotId === "LCB" || slotId === "RCB") return "CB";
+  if (slotId === "DM") return "DM";
+  return "";
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const out = arr.slice();
   for (let i = out.length - 1; i > 0; i--) {
