@@ -97,7 +97,7 @@ export default function Nav() {
           </div>
         </div>
       </header>
-      <nav className="no-print fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+      <nav className="no-print fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:hidden">
         <div
           className="grid"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
