@@ -3,11 +3,13 @@ import { todayStr } from "@/lib/format";
 import { sendPushToMember } from "@/lib/push";
 import { MATCH_DURATION_HOURS } from "@/lib/rules";
 
-// Vercel cron이 주기적으로 호출: 경기 당일, 시작 시각 + MATCH_DURATION_HOURS가
-// 지난 경기 중 비품(공가방1·공가방2·물/음료·아이스박스) 담당자 4칸이 아직 다
-// 안 채워졌으면, 아직 알림을 안 보낸 경기에 한해 운영진 전원에게 입력 요청
-// 푸시를 보낸다. "경기 당일"로 제한해서, 이 기능 도입 전부터 있던 과거
-// 경기들이 한꺼번에 알림을 쏟아내는 일이 없게 한다.
+// Vercel cron이 매일 저녁(21:00 KST) 한 번 호출 — Hobby 플랜은 하루 1번
+// 이상 도는 크론을 못 써서 이 시각 하나로 그날 경기를 다 잡는다. 경기 당일,
+// 시작 시각 + MATCH_DURATION_HOURS가 지난 경기 중 비품(공가방1·공가방2·
+// 물/음료·아이스박스) 담당자 4칸이 아직 다 안 채워졌으면, 아직 알림을 안
+// 보낸 경기에 한해 운영진 전원에게 입력 요청 푸시를 보낸다. "경기 당일"로
+// 제한해서, 이 기능 도입 전부터 있던 과거 경기들이 한꺼번에 알림을 쏟아내는
+// 일이 없게 한다.
 export async function GET() {
   const today = todayStr();
   const [events, adminUsers] = await Promise.all([
