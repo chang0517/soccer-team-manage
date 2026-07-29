@@ -73,10 +73,12 @@ export function eventsToIcs(events: EventItem[]): string {
 }
 
 export function icsFeedResponse(events: EventItem[]): Response {
-  return new Response(eventsToIcs(events), {
+  const body = eventsToIcs(events);
+  return new Response(body, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'inline; filename="raven-fc.ics"',
+      "Content-Length": String(Buffer.byteLength(body, "utf8")),
       "Cache-Control": "no-store",
     },
   });
