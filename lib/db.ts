@@ -44,7 +44,7 @@ export async function getEvent(id: number): Promise<EventItem | null> {
   return usePg ? pg.getEvent(id) : sqlite.getEvent(id);
 }
 export async function createEvent(
-  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded">
+  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded" | "equipmentReminderSent">
 ): Promise<EventItem> {
   return usePg ? pg.createEvent(e) : sqlite.createEvent(e);
 }

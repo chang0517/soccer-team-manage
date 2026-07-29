@@ -58,7 +58,8 @@ function createDb(): Database.Database {
       duty_defense TEXT NOT NULL DEFAULT '',
       water_duty TEXT NOT NULL DEFAULT '',
       icebox_duty TEXT NOT NULL DEFAULT '',
-      record_log TEXT
+      record_log TEXT,
+      equipment_reminder_sent INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS votes (
       event_id INTEGER NOT NULL,
@@ -180,6 +181,11 @@ function createDb(): Database.Database {
   if (!eventCols.some((c) => c.name === "record_log")) {
     db.exec("ALTER TABLE events ADD COLUMN record_log TEXT");
   }
+  if (!eventCols.some((c) => c.name === "equipment_reminder_sent")) {
+    db.exec(
+      "ALTER TABLE events ADD COLUMN equipment_reminder_sent INTEGER NOT NULL DEFAULT 0"
+    );
+  }
   const hofCols = db.prepare("PRAGMA table_info(hall_of_fame)").all() as { name: string }[];
   if (hofCols.length > 0 && !hofCols.some((c) => c.name === "clean_sheet_first_id")) {
     db.exec("ALTER TABLE hall_of_fame ADD COLUMN clean_sheet_first_id INTEGER");
@@ -288,6 +294,7 @@ type EventDbRow = {
   water_duty: string;
   icebox_duty: string;
   record_log: string | null;
+  equipment_reminder_sent: number;
 };
 
 function toEvent(r: EventDbRow): EventItem {
@@ -308,6 +315,7 @@ function toEvent(r: EventDbRow): EventItem {
     waterDuty: r.water_duty,
     iceboxDuty: r.icebox_duty,
     recordLog: r.record_log ? (JSON.parse(r.record_log) as EventItem["recordLog"]) : null,
+    equipmentReminderSent: !!r.equipment_reminder_sent,
   };
 }
 
@@ -326,7 +334,7 @@ export function getEvent(id: number): EventItem | null {
 }
 
 export function createEvent(
-  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded">
+  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded" | "equipmentReminderSent">
 ): EventItem {
   const r = getDb()
     .prepare(
@@ -354,7 +362,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   getDb()
     .prepare(
-      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=? WHERE id=?"
+      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=?, equipment_reminder_sent=? WHERE id=?"
     )
     .run(
       next.title,
@@ -372,6 +380,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
       next.waterDuty ?? "",
       next.iceboxDuty ?? "",
       next.recordLog ? JSON.stringify(next.recordLog) : null,
+      next.equipmentReminderSent ? 1 : 0,
       id
     );
 }
@@ -918,10 +927,17 @@ export function getAllPushSubscriptions(): {
   endpoint: string;
   p256dh: string;
   auth: string;
+  memberId: number | null;
 }[] {
-  return getDb()
-    .prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions")
-    .all() as { endpoint: string; p256dh: string; auth: string }[];
+  const rows = getDb()
+    .prepare("SELECT endpoint, p256dh, auth, member_id FROM push_subscriptions")
+    .all() as { endpoint: string; p256dh: string; auth: string; member_id: number | null }[];
+  return rows.map((r) => ({
+    endpoint: r.endpoint,
+    p256dh: r.p256dh,
+    auth: r.auth,
+    memberId: r.member_id,
+  }));
 }
 
 export function deletePushSubscription(endpoint: string) {

@@ -147,6 +147,9 @@ export interface EventItem {
   iceboxDuty: string;
   // 쿼터별 기록 입력 화면의 원본 로그(스코어+골/어시). 없으면 아직 입력 전.
   recordLog: QuarterRecordEntry[] | null;
+  // 경기 종료(시작 시각 + MATCH_DURATION_HOURS) 시점 비품 담당자 입력 알림을
+  // 이미 보냈는지. 크론이 매 실행마다 같은 경기에 중복 발송하지 않게 막는다.
+  equipmentReminderSent: boolean;
 }
 
 export interface VoteRow {

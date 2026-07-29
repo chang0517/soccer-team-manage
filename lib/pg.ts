@@ -74,7 +74,8 @@ async function init() {
       duty_defense TEXT NOT NULL DEFAULT '',
       water_duty TEXT NOT NULL DEFAULT '',
       icebox_duty TEXT NOT NULL DEFAULT '',
-      record_log JSONB
+      record_log JSONB,
+      equipment_reminder_sent BOOLEAN NOT NULL DEFAULT false
     );
     CREATE TABLE IF NOT EXISTS votes (
       event_id INTEGER NOT NULL,
@@ -194,6 +195,9 @@ async function init() {
   }
   await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS record_log JSONB");
   await pool.query(
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS equipment_reminder_sent BOOLEAN NOT NULL DEFAULT false"
+  );
+  await pool.query(
     "ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER"
   );
   await pool.query(
@@ -289,6 +293,7 @@ type EventDbRow = {
   water_duty: string;
   icebox_duty: string;
   record_log: EventItem["recordLog"];
+  equipment_reminder_sent: boolean;
 };
 
 function toEvent(r: EventDbRow): EventItem {
@@ -309,6 +314,7 @@ function toEvent(r: EventDbRow): EventItem {
     waterDuty: r.water_duty,
     iceboxDuty: r.icebox_duty,
     recordLog: r.record_log ?? null,
+    equipmentReminderSent: r.equipment_reminder_sent,
   };
 }
 
@@ -327,7 +333,7 @@ export async function getEvent(id: number): Promise<EventItem | null> {
 }
 
 export async function createEvent(
-  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded">
+  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded" | "equipmentReminderSent">
 ): Promise<EventItem> {
   const pool = await ready();
   const { rows } = await pool.query(
@@ -355,7 +361,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   const pool = await ready();
   await pool.query(
-    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14, record_log=$15 WHERE id=$16",
+    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14, record_log=$15, equipment_reminder_sent=$16 WHERE id=$17",
     [
       next.title,
       next.type,
@@ -372,6 +378,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
       next.waterDuty ?? "",
       next.iceboxDuty ?? "",
       next.recordLog ? JSON.stringify(next.recordLog) : null,
+      next.equipmentReminderSent ?? false,
       id,
     ]
   );
@@ -917,10 +924,12 @@ export async function savePushSubscription(sub: {
 }
 
 export async function getAllPushSubscriptions(): Promise<
-  { endpoint: string; p256dh: string; auth: string }[]
+  { endpoint: string; p256dh: string; auth: string; memberId: number | null }[]
 > {
   const pool = await ready();
-  const { rows } = await pool.query("SELECT endpoint, p256dh, auth FROM push_subscriptions");
+  const { rows } = await pool.query(
+    "SELECT endpoint, p256dh, auth, member_id AS \"memberId\" FROM push_subscriptions"
+  );
   return rows;
 }
 
