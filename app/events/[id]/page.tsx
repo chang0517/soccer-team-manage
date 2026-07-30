@@ -1140,8 +1140,8 @@ export default function EventDetailPage({
 
       {event.type === "match" && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold">스쿼드 (4-1-2-2-1)</h2>
               {isSquadLocked && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
@@ -1154,7 +1154,7 @@ export default function EventDetailPage({
                 </span>
               )}
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {isAdmin && (
                 <button
                   onClick={splitScrimmage}
