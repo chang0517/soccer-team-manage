@@ -189,3 +189,28 @@ export function generateSquad(attendees: Member[]): SquadData {
   }
   return { quarters, generatedAt: new Date().toISOString() };
 }
+
+/**
+ * 내전(자체 훈련용 2팀 스크리미지)을 위해 참석자를 포지션 균형을 맞춰 두
+ * 팀으로 나눈다. 카테고리(수비/미드필더/공격)별로 따로 섞어서 절반씩 두
+ * 팀에 번갈아 배정하므로, 인원이 맞으면 양 팀이 비슷한 포지션 구성을 갖는다.
+ */
+export function splitScrimmageTeams(attendees: Member[]): {
+  teamA: Member[];
+  teamB: Member[];
+} {
+  const byCategory = new Map<SlotCategory, Member[]>();
+  for (const m of attendees) {
+    const cat = categoryOf(m.pos1);
+    const list = byCategory.get(cat) ?? [];
+    list.push(m);
+    byCategory.set(cat, list);
+  }
+
+  const teamA: Member[] = [];
+  const teamB: Member[] = [];
+  for (const list of byCategory.values()) {
+    shuffle(list).forEach((m, i) => (i % 2 === 0 ? teamA : teamB).push(m));
+  }
+  return { teamA, teamB };
+}

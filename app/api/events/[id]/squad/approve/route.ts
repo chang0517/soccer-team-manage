@@ -5,9 +5,10 @@ import { getEvent, updateEvent } from "@/lib/db";
 // 상태에서 다시 누르면 승인을 취소한다(깃헙 리뷰 취소와 비슷). 승인 인원이
 // SQUAD_APPROVAL_THRESHOLD 이상이 되면 lib/squad.ts의 isSquadConfirmed가
 // 자동으로 확정 상태로 판단한다 — 이 라우트는 별도로 confirmed를 건드리지
-// 않는다.
+// 않는다. ?team=B를 주면 내전 모드의 B팀 스쿼드(scrimmageSquad)를 승인한다
+// (기본은 A팀 = squad).
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireAdmin();
@@ -21,18 +22,22 @@ export async function POST(
     );
   }
 
+  const team = new URL(request.url).searchParams.get("team");
+  const field = team === "B" ? "scrimmageSquad" : "squad";
+
   const { id } = await params;
   const event = await getEvent(Number(id));
-  if (!event?.squad) {
+  const target = event?.[field];
+  if (!target) {
     return Response.json({ error: "스쿼드가 없어요." }, { status: 404 });
   }
 
-  const approvedBy = event.squad.approvedBy ?? [];
+  const approvedBy = target.approvedBy ?? [];
   const nextApprovedBy = approvedBy.includes(session.memberId)
     ? approvedBy.filter((mid) => mid !== session.memberId)
     : [...approvedBy, session.memberId];
 
-  const squad = { ...event.squad, approvedBy: nextApprovedBy };
-  await updateEvent(event.id, { squad });
+  const squad = { ...target, approvedBy: nextApprovedBy };
+  await updateEvent(event!.id, { [field]: squad });
   return Response.json(squad);
 }

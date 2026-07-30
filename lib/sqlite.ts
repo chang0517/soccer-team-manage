@@ -53,6 +53,7 @@ function createDb(): Database.Database {
       scored INTEGER,
       conceded INTEGER,
       squad TEXT,
+      scrimmage_squad TEXT,
       notes TEXT NOT NULL DEFAULT '',
       duty_offense TEXT NOT NULL DEFAULT '',
       duty_defense TEXT NOT NULL DEFAULT '',
@@ -186,6 +187,9 @@ function createDb(): Database.Database {
       "ALTER TABLE events ADD COLUMN equipment_reminder_sent INTEGER NOT NULL DEFAULT 0"
     );
   }
+  if (!eventCols.some((c) => c.name === "scrimmage_squad")) {
+    db.exec("ALTER TABLE events ADD COLUMN scrimmage_squad TEXT");
+  }
   const hofCols = db.prepare("PRAGMA table_info(hall_of_fame)").all() as { name: string }[];
   if (hofCols.length > 0 && !hofCols.some((c) => c.name === "clean_sheet_first_id")) {
     db.exec("ALTER TABLE hall_of_fame ADD COLUMN clean_sheet_first_id INTEGER");
@@ -288,6 +292,7 @@ type EventDbRow = {
   scored: number | null;
   conceded: number | null;
   squad: string | null;
+  scrimmage_squad: string | null;
   notes: string;
   duty_offense: string;
   duty_defense: string;
@@ -309,6 +314,7 @@ function toEvent(r: EventDbRow): EventItem {
     scored: r.scored,
     conceded: r.conceded,
     squad: r.squad ? (JSON.parse(r.squad) as SquadData) : null,
+    scrimmageSquad: r.scrimmage_squad ? (JSON.parse(r.scrimmage_squad) as SquadData) : null,
     notes: r.notes,
     dutyOffense: r.duty_offense,
     dutyDefense: r.duty_defense,
@@ -334,7 +340,10 @@ export function getEvent(id: number): EventItem | null {
 }
 
 export function createEvent(
-  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded" | "equipmentReminderSent">
+  e: Omit<
+    EventItem,
+    "id" | "squad" | "scrimmageSquad" | "scored" | "conceded" | "equipmentReminderSent"
+  >
 ): EventItem {
   const r = getDb()
     .prepare(
@@ -362,7 +371,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   getDb()
     .prepare(
-      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=?, equipment_reminder_sent=? WHERE id=?"
+      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, scrimmage_squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=?, equipment_reminder_sent=? WHERE id=?"
     )
     .run(
       next.title,
@@ -374,6 +383,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
       next.scored,
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,
+      next.scrimmageSquad ? JSON.stringify(next.scrimmageSquad) : null,
       next.notes,
       next.dutyOffense ?? "",
       next.dutyDefense ?? "",

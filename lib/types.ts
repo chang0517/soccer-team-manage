@@ -137,6 +137,9 @@ export interface EventItem {
   scored: number | null;
   conceded: number | null;
   squad: SquadData | null;
+  // 내전(자체 2팀 스크리미지)일 때 B팀 스쿼드. null이면 평소처럼 squad
+  // 하나만 쓰는 단일 팀 모드다.
+  scrimmageSquad: SquadData | null;
   notes: string;
   // 경기 준비물/역할 비고 4칸: 공가방1·공가방2·물/음료·아이스박스 담당자.
   // 홈 화면 카드에서 평소엔 읽기 전용으로 보이고 "수정"을 누르면 편집,

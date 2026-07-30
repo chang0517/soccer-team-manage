@@ -81,9 +81,12 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await request.json();
-  if (body.squad !== undefined) {
+  if (body.squad !== undefined || body.scrimmageSquad !== undefined) {
     const current = await getEvent(Number(id));
-    if (isSquadConfirmed(current?.squad) && !(await requireAdmin())) {
+    const locked =
+      (body.squad !== undefined && isSquadConfirmed(current?.squad)) ||
+      (body.scrimmageSquad !== undefined && isSquadConfirmed(current?.scrimmageSquad));
+    if (locked && !(await requireAdmin())) {
       return Response.json(
         { error: "확정된 스쿼드는 운영진만 수정할 수 있어요." },
         { status: 403 }

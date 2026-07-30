@@ -69,6 +69,7 @@ async function init() {
       scored INTEGER,
       conceded INTEGER,
       squad JSONB,
+      scrimmage_squad JSONB,
       notes TEXT NOT NULL DEFAULT '',
       duty_offense TEXT NOT NULL DEFAULT '',
       duty_defense TEXT NOT NULL DEFAULT '',
@@ -197,6 +198,7 @@ async function init() {
   await pool.query(
     "ALTER TABLE events ADD COLUMN IF NOT EXISTS equipment_reminder_sent BOOLEAN NOT NULL DEFAULT false"
   );
+  await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS scrimmage_squad JSONB");
   await pool.query(
     "ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER"
   );
@@ -287,6 +289,7 @@ type EventDbRow = {
   scored: number | null;
   conceded: number | null;
   squad: SquadData | null;
+  scrimmage_squad: SquadData | null;
   notes: string;
   duty_offense: string;
   duty_defense: string;
@@ -308,6 +311,7 @@ function toEvent(r: EventDbRow): EventItem {
     scored: r.scored,
     conceded: r.conceded,
     squad: r.squad,
+    scrimmageSquad: r.scrimmage_squad,
     notes: r.notes,
     dutyOffense: r.duty_offense,
     dutyDefense: r.duty_defense,
@@ -333,7 +337,10 @@ export async function getEvent(id: number): Promise<EventItem | null> {
 }
 
 export async function createEvent(
-  e: Omit<EventItem, "id" | "squad" | "scored" | "conceded" | "equipmentReminderSent">
+  e: Omit<
+    EventItem,
+    "id" | "squad" | "scrimmageSquad" | "scored" | "conceded" | "equipmentReminderSent"
+  >
 ): Promise<EventItem> {
   const pool = await ready();
   const { rows } = await pool.query(
@@ -361,7 +368,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   const pool = await ready();
   await pool.query(
-    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, notes=$10, duty_offense=$11, duty_defense=$12, water_duty=$13, icebox_duty=$14, record_log=$15, equipment_reminder_sent=$16 WHERE id=$17",
+    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, scrimmage_squad=$10, notes=$11, duty_offense=$12, duty_defense=$13, water_duty=$14, icebox_duty=$15, record_log=$16, equipment_reminder_sent=$17 WHERE id=$18",
     [
       next.title,
       next.type,
@@ -372,6 +379,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
       next.scored,
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,
+      next.scrimmageSquad ? JSON.stringify(next.scrimmageSquad) : null,
       next.notes,
       next.dutyOffense ?? "",
       next.dutyDefense ?? "",
