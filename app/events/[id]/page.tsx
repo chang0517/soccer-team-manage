@@ -1238,6 +1238,22 @@ export default function EventDetailPage({
 
           {currentSquad ? (
             <>
+              <div className="mb-3 rounded-xl bg-zinc-50 p-3 text-sm">
+                <p className="mb-1.5 text-xs font-bold text-zinc-500">
+                  {isScrimmage ? `${activeTeam}팀 전체 명단` : "전체 명단"} · {rosterIds.length}명
+                </p>
+                <div className="space-y-1">
+                  {groupedByCategory(rosterIds).map(({ cat, label, names }) => (
+                    <p key={cat}>
+                      <span className="font-semibold text-zinc-500">
+                        {label} {names.length}
+                      </span>{" "}
+                      {names.join(", ")}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
               <div className="mb-3 grid grid-cols-4 gap-1.5">
                 {currentSquad.quarters.map((_, qi) => (
                   <button
