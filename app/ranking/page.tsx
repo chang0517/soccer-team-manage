@@ -138,7 +138,7 @@ export default function RankingPage() {
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500">
               <th className="px-3 py-2.5">순위</th>
@@ -191,7 +191,7 @@ export default function RankingPage() {
                 <td className="px-2 py-2 text-center">{r.cleanCount}</td>
                 <td className="px-2 py-2 text-center">{r.mvpCount}</td>
                 <td className="px-3 py-2 text-right font-bold text-blue-700">
-                  {r.total}
+                  {r.total.toFixed(1)}
                 </td>
               </tr>
             ))}
