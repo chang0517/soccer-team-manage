@@ -212,5 +212,13 @@ export function splitScrimmageTeams(attendees: Member[]): {
   for (const list of byCategory.values()) {
     shuffle(list).forEach((m, i) => (i % 2 === 0 ? teamA : teamB).push(m));
   }
+
+  // 카테고리마다는 균형이 맞아도, 홀수 인원 카테고리가 여러 개 겹치면 그
+  // 나머지 한 명이 매번 A팀 쪽으로 쌓여서 전체 인원수가 크게 벌어질 수
+  // 있다 — 두 팀 인원 차이가 1명을 넘지 않을 때까지 큰 팀에서 작은 팀으로
+  // 옮긴다.
+  while (teamA.length - teamB.length > 1) teamB.push(teamA.pop()!);
+  while (teamB.length - teamA.length > 1) teamA.push(teamB.pop()!);
+
   return { teamA, teamB };
 }

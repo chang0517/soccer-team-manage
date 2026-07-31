@@ -200,6 +200,10 @@ export default function EventDetailPage({
   const rosterIds = isScrimmage ? teamRosterIds(currentSquad) : attendIds;
   const isSquadLocked = isSquadConfirmed(currentSquad);
   const canEditSquad = !isSquadLocked || isAdmin;
+  // 반대 팀으로 옮기는 건 두 팀 스쿼드를 동시에 바꾸는 조작이라, 지금 팀뿐
+  // 아니라 반대 팀도 잠겨있지 않아야(또는 운영진이어야) 허용한다.
+  const otherTeamSquad = activeTeam === "B" ? event.squad : event.scrimmageSquad;
+  const canMoveTeam = isScrimmage && canEditSquad && (!isSquadConfirmed(otherTeamSquad) || isAdmin);
   const squadApprovedBy = currentSquad?.approvedBy ?? [];
   const iApprovedSquad = myId != null && squadApprovedBy.includes(myId);
   const hasAbsenteeInSquad =
@@ -437,6 +441,30 @@ export default function EventDetailPage({
       body: JSON.stringify({ scrimmageSquad: null }),
     });
     setActiveTeam("A");
+    load();
+  };
+
+  // 내전 모드에서 특정 멤버를 반대 팀 로스터로 옮긴다. 두 팀 다 그 새
+  // 로스터로 포메이션을 다시 만든다(어느 슬롯에 배정될지는 다시 계산됨).
+  const moveToOtherTeam = async (memberId: number) => {
+    if (!event.squad || !event.scrimmageSquad) return;
+    const aIds = teamRosterIds(event.squad);
+    const bIds = teamRosterIds(event.scrimmageSquad);
+    const movingFromA = aIds.includes(memberId);
+    const newAIds = movingFromA
+      ? aIds.filter((mid) => mid !== memberId)
+      : [...aIds, memberId];
+    const newBIds = movingFromA
+      ? [...bIds, memberId]
+      : bIds.filter((mid) => mid !== memberId);
+    await fetch(`/api/events/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        squad: generateSquad(members.filter((m) => newAIds.includes(m.id))),
+        scrimmageSquad: generateSquad(members.filter((m) => newBIds.includes(m.id))),
+      }),
+    });
     load();
   };
 
@@ -754,6 +782,25 @@ export default function EventDetailPage({
 
   const groupedVoters = (status: VoteStatus) =>
     groupedByCategory(votes.filter((v) => v.status === status).map((v) => v.memberId));
+
+  // 팀 로스터를 포지션별로 묶되, 각 인원의 memberId도 같이 준다 — 내전
+  // 모드에서 이름을 눌러 반대 팀으로 옮기는 조작에 필요하다.
+  const groupedByCategoryIds = (memberIds: number[]) => {
+    const byCat = new Map<PosCategory, number[]>();
+    for (const mid of memberIds) {
+      const m = memberById.get(mid);
+      if (!m) continue;
+      const cat = POS_CATEGORY[m.pos1];
+      const list = byCat.get(cat) ?? [];
+      list.push(mid);
+      byCat.set(cat, list);
+    }
+    return CATEGORY_ORDER.filter((c) => (byCat.get(c)?.length ?? 0) > 0).map((c) => ({
+      cat: c,
+      label: POS_CATEGORY_LABELS[c],
+      ids: byCat.get(c)!,
+    }));
+  };
 
   const numInput =
     "w-12 rounded-lg border border-zinc-300 bg-white px-1 py-1 text-center text-sm";
@@ -1241,14 +1288,34 @@ export default function EventDetailPage({
               <div className="mb-3 rounded-xl bg-zinc-50 p-3 text-sm">
                 <p className="mb-1.5 text-xs font-bold text-zinc-500">
                   {isScrimmage ? `${activeTeam}팀 전체 명단` : "전체 명단"} · {rosterIds.length}명
+                  {canMoveTeam && ` · 이름을 누르면 ${activeTeam === "A" ? "B" : "A"}팀으로 이동`}
                 </p>
-                <div className="space-y-1">
-                  {groupedByCategory(rosterIds).map(({ cat, label, names }) => (
-                    <p key={cat}>
-                      <span className="font-semibold text-zinc-500">
-                        {label} {names.length}
-                      </span>{" "}
-                      {names.join(", ")}
+                <div className="space-y-1.5">
+                  {groupedByCategoryIds(rosterIds).map(({ cat, label, ids }) => (
+                    <p key={cat} className="flex flex-wrap items-center gap-1">
+                      <span className="mr-1 shrink-0 font-semibold text-zinc-500">
+                        {label} {ids.length}
+                      </span>
+                      {ids.map((mid) => {
+                        const m = memberById.get(mid);
+                        const nameLabel = `${m?.name ?? "?"}${m?.isGuest ? "(용병)" : ""}`;
+                        return canMoveTeam ? (
+                          <button
+                            key={mid}
+                            onClick={() => moveToOtherTeam(mid)}
+                            className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-700 ring-1 ring-zinc-200"
+                          >
+                            {nameLabel}
+                          </button>
+                        ) : (
+                          <span
+                            key={mid}
+                            className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-600 ring-1 ring-zinc-100"
+                          >
+                            {nameLabel}
+                          </span>
+                        );
+                      })}
                     </p>
                   ))}
                 </div>
