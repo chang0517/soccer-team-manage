@@ -6,6 +6,8 @@ import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
 import { currentSeason } from "@/lib/season";
+import { WEATHER_EMOJI } from "@/lib/weather";
+import type { MatchWeather } from "@/lib/weather";
 import type { EventItem, RankingRow, VoteRow, VoteStatus } from "@/lib/types";
 
 const DUTY_FIELDS: { key: keyof DutyDraft; label: string }[] = [
@@ -26,6 +28,7 @@ export default function HomePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [votesByEvent, setVotesByEvent] = useState<Record<number, VoteRow[]>>({});
+  const [weatherByEvent, setWeatherByEvent] = useState<Record<number, MatchWeather | null>>({});
   const [noteDrafts, setNoteDrafts] = useState<Record<number, DutyDraft>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [noteSavingId, setNoteSavingId] = useState<number | null>(null);
@@ -47,6 +50,20 @@ export default function HomePage() {
     setVotesByEvent(data);
   }, []);
 
+  const loadWeather = useCallback(async (eventIds: number[]) => {
+    if (eventIds.length === 0) {
+      setWeatherByEvent({});
+      return;
+    }
+    const pairs = await Promise.all(
+      eventIds.map(async (eid) => {
+        const d = await fetch(`/api/events/${eid}/weather`).then((r) => r.json());
+        return [eid, d.weather ?? null] as const;
+      })
+    );
+    setWeatherByEvent(Object.fromEntries(pairs));
+  }, []);
+
   useEffect(() => {
     fetch(`/api/ranking?season=${currentSeason()}`).then((r) => r.json()).then(setRanking);
     fetch("/api/events")
@@ -59,6 +76,7 @@ export default function HomePage() {
           .slice(0, 3)
           .map((e) => e.id);
         loadVotes(ids);
+        loadWeather(ids);
         setNoteDrafts(
           Object.fromEntries(
             evs.map((e) => [
@@ -73,7 +91,7 @@ export default function HomePage() {
           )
         );
       });
-  }, [loadVotes]);
+  }, [loadVotes, loadWeather]);
 
   const startEditNote = (eventId: number) => setEditingId(eventId);
 
@@ -147,7 +165,9 @@ export default function HomePage() {
           </p>
         )}
         <div className="space-y-3">
-          {upcoming.map((e) => (
+          {upcoming.map((e) => {
+            const w = weatherByEvent[e.id];
+            return (
             <div
               key={e.id}
               className="rounded-2xl border border-zinc-200 bg-white p-4"
@@ -172,6 +192,14 @@ export default function HomePage() {
                 </p>
                 {e.location && (
                   <p className="mt-0.5 text-sm text-zinc-500">📍 {e.location}</p>
+                )}
+                {w && (
+                  <p className="mt-0.5 text-sm font-semibold text-zinc-600">
+                    {w.pty ? WEATHER_EMOJI[w.pty] : w.sky ? WEATHER_EMOJI[w.sky] : ""}{" "}
+                    {w.pty ?? w.sky ?? ""}
+                    {w.tmp != null && ` · ${w.tmp}°C`}
+                    {w.pop != null && ` · 강수 ${w.pop}%`}
+                  </p>
                 )}
               </Link>
               <div className="mt-3">
@@ -255,7 +283,8 @@ export default function HomePage() {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

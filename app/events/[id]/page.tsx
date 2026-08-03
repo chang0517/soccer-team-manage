@@ -8,6 +8,7 @@ import TimePicker from "@/components/TimePicker";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
+import { WEATHER_EMOJI } from "@/lib/weather";
 import type { MatchWeather } from "@/lib/weather";
 import { ATTEND_CAP, isVotingClosed } from "@/lib/rules";
 import {
@@ -37,19 +38,6 @@ import type {
 } from "@/lib/types";
 
 const CATEGORY_ORDER: PosCategory[] = ["ATT", "MID", "DEF"];
-
-const WEATHER_EMOJI: Record<string, string> = {
-  맑음: "☀️",
-  구름많음: "⛅",
-  흐림: "☁️",
-  비: "🌧️",
-  "비/눈": "🌨️",
-  눈: "❄️",
-  소나기: "🌦️",
-  빗방울: "🌦️",
-  빗방울눈날림: "🌨️",
-  눈날림: "🌨️",
-};
 
 interface GoalEntryDraft {
   key: string;
@@ -175,13 +163,10 @@ export default function EventDetailPage({
     load();
   }, [load]);
 
-  // 날씨는 스쿼드 편집 등으로 load()가 재호출될 때마다 다시 부를 필요가
-  // 없어서, 날짜·시각·장소가 실제로 바뀔 때만 따로 불러온다.
+  // load()가 이벤트를 다 받아온 다음에야 날씨를 요청하면 그만큼 늦게
+  // 뜬다 — id는 라우트 파라미터로 이미 알고 있으니 load()와 동시에 바로
+  // 요청한다(서버가 event.type을 판단해 매치가 아니면 null을 준다).
   useEffect(() => {
-    if (!event || event.type !== "match") {
-      setWeather(null);
-      return;
-    }
     let cancelled = false;
     fetch(`/api/events/${id}/weather`)
       .then((r) => r.json())

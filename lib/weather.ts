@@ -88,6 +88,64 @@ export interface MatchWeather {
   pty: string | null; // 강수형태(없으면 null)
 }
 
+// 화면에 날씨를 표시하는 곳(경기 상세 페이지, 홈 화면)에서 공통으로 쓰는
+// sky/pty 라벨 → 이모지 매핑.
+export const WEATHER_EMOJI: Record<string, string> = {
+  맑음: "☀️",
+  구름많음: "⛅",
+  흐림: "☁️",
+  비: "🌧️",
+  "비/눈": "🌨️",
+  눈: "❄️",
+  소나기: "🌦️",
+  빗방울: "🌦️",
+  빗방울눈날림: "🌨️",
+  눈날림: "🌨️",
+};
+
+// (nx,ny,baseDate,baseTime) 조합으로 캐싱한다 — 이 조합은 3시간마다 한 번만
+// 바뀌니, 같은 경기를 여러 명이 보거나 홈 화면에서 여러 경기가 같은 구장을
+// 쓸 때 외부 API를 매번 다시 부르지 않는다(서버리스 인스턴스가 살아있는
+// 동안만 유효 — 콜드스타트되면 자연히 비워진다).
+const forecastCache = new Map<string, unknown[]>();
+
+async function fetchVilageFcstItems(
+  apiKey: string,
+  nx: number,
+  ny: number,
+  baseDate: string,
+  baseTime: string
+): Promise<unknown[] | null> {
+  const cacheKey = `${nx},${ny},${baseDate},${baseTime}`;
+  const cached = forecastCache.get(cacheKey);
+  if (cached) return cached;
+
+  const url = new URL("https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst");
+  url.searchParams.set("serviceKey", apiKey);
+  url.searchParams.set("pageNo", "1");
+  url.searchParams.set("numOfRows", "1000");
+  url.searchParams.set("dataType", "JSON");
+  url.searchParams.set("base_date", baseDate);
+  url.searchParams.set("base_time", baseTime);
+  url.searchParams.set("nx", String(nx));
+  url.searchParams.set("ny", String(ny));
+
+  let data: unknown;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    data = await res.json();
+  } catch {
+    return null;
+  }
+
+  const items = (data as { response?: { body?: { items?: { item?: unknown } } } })?.response?.body
+    ?.items?.item;
+  if (!Array.isArray(items)) return null;
+  forecastCache.set(cacheKey, items);
+  return items;
+}
+
 /**
  * 경기 장소·날짜·시각에 대한 예보를 반환한다. 장소를 모르거나(등록된 홈구장이
  * 아님), 시각이 없거나, 예보 가능 범위(대략 D+2까지)를 벗어나면 null.
@@ -112,28 +170,8 @@ export async function getMatchWeather(
   const { nx, ny } = latLonToGrid(coords.lat, coords.lon);
   const { baseDate, baseTime } = latestBaseDateTime();
 
-  const url = new URL("https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst");
-  url.searchParams.set("serviceKey", apiKey);
-  url.searchParams.set("pageNo", "1");
-  url.searchParams.set("numOfRows", "1000");
-  url.searchParams.set("dataType", "JSON");
-  url.searchParams.set("base_date", baseDate);
-  url.searchParams.set("base_time", baseTime);
-  url.searchParams.set("nx", String(nx));
-  url.searchParams.set("ny", String(ny));
-
-  let data: unknown;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    data = await res.json();
-  } catch {
-    return null;
-  }
-
-  const items = (data as { response?: { body?: { items?: { item?: unknown } } } })?.response?.body
-    ?.items?.item;
-  if (!Array.isArray(items)) return null;
+  const items = await fetchVilageFcstItems(apiKey, nx, ny, baseDate, baseTime);
+  if (!items) return null;
 
   const targetFcstDate = date.replace(/-/g, "");
   const targetFcstTime = `${time.slice(0, 2)}00`;
