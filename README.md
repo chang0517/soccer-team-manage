@@ -1,36 +1,203 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Soccer-team-manage (Raven FC)
 
-## Getting Started
+조기축구팀 **Raven FC**의 일정·투표·스쿼드·기록·랭킹을 관리하는 팀 전용 웹앱(PWA)입니다.
+[Next.js](https://nextjs.org) App Router + TypeScript로 만들어졌고, 모바일 홈 화면에 설치해 쓰는 것을 기준으로 설계되어 있습니다.
 
-First, run the development server:
+## 목차
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- [화면 구성](#화면-구성)
+- [핵심 기능](#핵심-기능)
+- [랭킹 · 포인트 규칙](#랭킹--포인트-규칙)
+- [권한 / 계정](#권한--계정)
+- [PWA · 알림](#pwa--알림)
+- [자동화 (Cron)](#자동화-cron)
+- [외부 연동 (맥미니 게이트웨이)](#외부-연동-맥미니-게이트웨이)
+- [기술 스택 · 아키텍처](#기술-스택--아키텍처)
+- [프로젝트 구조](#프로젝트-구조)
+- [로컬 개발](#로컬-개발)
+- [환경 변수](#환경-변수)
+- [배포](#배포)
+
+## 화면 구성
+
+하단(모바일)/상단(데스크톱) 탭 기준 7개 메뉴 + 운영진 전용 메뉴로 구성됩니다.
+
+| 탭 | 경로 | 내용 |
+| --- | --- | --- |
+| 🏠 홈 | `/` | 다가오는 일정 3개(참석 투표, 비품 담당자 비고 포함) + 이번 시즌 랭킹 TOP 5 |
+| 📅 일정 | `/schedule` | 월간 캘린더 + 일정 목록, 경기/친선모임 등록 |
+| 📢 공지 | `/notice` | 운영진 공지사항 목록/상세 |
+| 🗳️ 투표 | `/polls` | 자유 주제 다중/단일 선택 투표(월드컵 우승팀 예측 등) |
+| 🏆 랭킹 | `/ranking` | 공격/미드필더/수비 구분 랭킹, 시즌별·역대 전환 |
+| 👥 멤버 | `/members` | 팀원 명단, 포지션·등번호·연락처 |
+| 🏅 전당 | `/hall-of-fame` | 연도별 주장·부주장·총무, 득점왕·어시왕·클린시트왕·종합 1위 |
+| 🛠️ 운영진 | `/admin` | 가입 승인, 미투표자 벌금 관리, 역대 기록 관리 (admin 전용) |
+
+이 외에 `/events/[id]`(일정 상세), `/login`·`/signup`·`/find-id`·`/reset-password`(계정), `/account`(내 정보) 페이지가 있습니다.
+
+## 핵심 기능
+
+### 일정 & 참석 투표
+- 운영진이 제목·유형(경기/친선모임)·상대팀·날짜·시간·장소를 등록하고, 등록 후에도 "정보 수정"으로 다시 바꿀 수 있습니다.
+- 팀원은 참석/미정/불참으로 투표합니다. 투표는 **경기 3일 전까지**만 가능하고, **참석 인원이 30명**을 채우면 그 전이라도 자동 마감됩니다(`lib/rules.ts`). 마감 후에는 댓글로 의사를 표현할 수 있고, 운영진은 마감 후에도 예외적으로 투표를 대신 추가할 수 있습니다.
+- MVP 투표는 실제로 그 경기에 참석한 사람만 할 수 있습니다.
+- 일정 카드에는 비품(공가방1·공가방2·물/음료·아이스박스) 담당자를 적어두는 비고란이 있어, 평소엔 읽기 전용으로 보이다가 "수정"을 누르면 편집할 수 있습니다.
+- `/schedule`은 월간 달력(`MonthCalendar`) 위에 그 달 일정을 표시합니다.
+- 일정은 iCalendar(.ics) 피드로도 구독할 수 있습니다(`/api/calendar/[token].ics`, 토큰 기반 비공개 URL) — 아이폰/갤럭시 기본 캘린더 앱에 등록해두면 자동으로 최신 일정이 반영됩니다.
+
+### 스쿼드 자동 생성 & 편집
+- 포메이션은 **4-1-2-2-1** (GK 1 · CB/WB 4 · DM 1 · CM(DM/AM 겸업) 2 · WG(WG/AM 겸업) 2 · ST 1), 경기 하나를 **쿼터(1~4쿼터) 단위**로 독립적인 스쿼드 4벌을 구성합니다(`lib/squad.ts`).
+- 참석 확정 인원을 바탕으로 포지션 선호도(1순위 → 2순위 → 카테고리만 일치)에 따라 자동 배치되며, 카테고리(수비/미드필더/공격)별로 지금까지 덜 뛴 사람을 우선 배치해 **인당 출전 쿼터 수가 고르게 배분**되도록 합니다.
+- 경기 3일 전이 되면 Vercel 크론이 스쿼드가 없는 경기에 자동으로 스쿼드를 생성합니다.
+- 운영진은 슬롯 드래그 앤 드롭으로 선수를 교체·스왑하거나, 한 슬롯을 전반/후반으로 나눠 두 명이 반씩 뛰게(하프 분할) 편집할 수 있고, 벤치 선수를 바로 투입할 수 있습니다.
+- 스쿼드는 **깃헙 PR 승인처럼** 운영진 3명 이상이 승인해야 확정(잠금)됩니다. 확정 후에는 운영진만 재수정할 수 있고, 슬롯이 바뀌면 승인 목록이 초기화되어 다시 승인을 받아야 합니다.
+- 내전(자체 2팀 스크리미지)이 필요한 일정은 포지션 균형을 맞춰 두 팀으로 자동 분리(`splitScrimmageTeams`)할 수 있습니다.
+
+### 경기 기록 & AI 자동 입력
+- 기록은 **쿼터별 스코어 + 득점자/어시스트 로그** 방식으로 입력합니다. 저장 시 이 로그를 합산해서 선수별 누적 골·어시와 경기 전체 득실점을 채웁니다.
+- 기록 입력 화면에서 참석자를 바로 추가할 수 있고, 용병(게스트) 참가자도 등록할 수 있습니다.
+- "AI로 기록 입력"(`components/AiRecordImport.tsx`) 기능으로 쿼터별 메모(문자 등)를 붙여넣으면 팀 맥미니에서 도는 로컬 LLM(Ollama)이 스코어·득점자·어시스트를 파싱해 자동으로 채워줍니다. 서버(Vercel)가 게이트웨이를 호출하는 구조라 사용자는 어떤 기기·네트워크에서든 사용할 수 있습니다.
+
+### 랭킹 · 명예의 전당
+- 시즌 구분: 매년 **12월 15일 ~ 다음 해 12월 14일**을 한 시즌으로 봅니다(`lib/season.ts`). 랭킹 화면에서 시즌별/역대 전체를 전환해서 볼 수 있습니다.
+- 앱 도입 이전 스프레드시트로 관리하던 누적 기록(`historical_stats`)을 기준치로 함께 반영합니다.
+- 클린시트는 경기 전체가 아니라 **그 쿼터에 실제로 뛰었는지**를 기준으로 정확히 계산됩니다(로테이션으로 한 쿼터만 뛰어도 그 쿼터는 온전히 인정).
+- 3경기 이상 연속으로 골 또는 어시스트를 기록하면 랭킹에 "연속 스트릭"이 표시됩니다.
+- 명예의 전당(`/hall-of-fame`)은 연도별 주장·부주장·총무와 그 해 득점왕·어시왕·클린시트 1위·종합 1위를 운영진이 직접 관리합니다.
+
+### 투표 (이벤트 투표)
+- 참석 투표와는 별도로, 로그인한 회원이면 누구나 자유 주제 투표를 만들 수 있습니다(예: 월드컵 우승팀 예측).
+- 생성 시 다중 선택 허용 여부를 정하며(게시 후에는 잠김), 게시 후에도 선택지를 추가할 수 있습니다.
+- 결과는 항상 실시간으로 공개되고, 옵션별로 누가 투표했는지도 볼 수 있습니다.
+
+### 공지사항
+- 운영진이 공지를 작성·수정하고, 전체 팀원이 목록/상세에서 확인합니다.
+
+### 계정 / 가입 승인
+- 회원가입 시 운영진 이름 화이트리스트(`lib/roles.ts`)에 있으면 자동으로 운영진 권한이 배정되지만, 승인은 여전히 필요합니다.
+- 운영진은 `/admin`에서 가입 신청자를 기존 멤버와 연결하거나 새 멤버로 등록하며 승인/거절하고, 이때 권한(운영진/일반 선수)도 다시 지정할 수 있습니다.
+- 아이디/비밀번호를 잊었을 때는 휴대폰 SMS 인증번호로 본인 확인 후 아이디를 안내받거나 임시 비밀번호를 발급받을 수 있습니다(`/find-id`, `/reset-password`).
+
+### 운영진 전용 기능
+- **가입 승인** (`/admin`): 위 참고.
+- **미투표자 벌금 관리** (`/admin/fines`): 그 달 경기 중 하나라도 투표하지 않은 정식 멤버(용병 제외)를 찾아 벌금 안내 문자 발송 대상을 확인/발송합니다.
+- **역대 기록 관리** (`/admin/historical-stats`): 앱 도입 이전 스프레드시트 누적 기록(경기 수·골·어시·클린시트 점수·수동 가산점)을 회원별로 입력/수정합니다.
+- **전체 참석 상태 일괄 관리**: 운영진이 전체 인원의 참석 상태를 한 번에 관리할 수 있는 UI, 참석 현황과 인당 출전 쿼터 수를 공격/미드필더/수비로 구분해서 표시합니다.
+
+## 랭킹 · 포인트 규칙
+
+(`lib/points.ts`, `lib/rules.ts`) — 예전 스프레드시트 시절 점수 공식을 그대로 계승합니다.
+
+| 항목 | 점수 |
+| --- | --- |
+| 경기 출전 | 1.5점 |
+| 골 | 1.4점 |
+| 어시스트 | 1.25점 |
+| 클린시트 (GK·센터백·윙백) | 1.25점 |
+| 클린시트 (수비형 미드필더) | 0.625점 |
+
+- MVP 선정 횟수는 총점에는 반영되지 않고 별도 지표로만 표시됩니다.
+- 클린시트는 쿼터 단위 무실점 여부로 계산되며, 쿼터당 단가(경기 단가 ÷ 4)를 곱해 정규화합니다 — 4쿼터를 온전히 다 지켰을 때 예전 "경기 단위" 점수와 정확히 같아집니다.
+- 부동소수점 가중치 합산 오차는 소수 3자리에서 반올림해 제거합니다.
+
+## 권한 / 계정
+
+- 세션은 HMAC 서명된 쿠키(`raven_session`, `lib/auth.ts`)로 관리되며, 비밀번호는 bcrypt로 해시합니다.
+- 역할은 `admin` / `player` 두 가지이고, 가입 상태는 `pending` / `approved` / `rejected`로 관리됩니다.
+- 운영진 전용 API는 쿠키뿐 아니라 DB의 최신 role/status까지 다시 확인해, 권한 취소·강등이 즉시 반영되도록 합니다.
+
+## PWA · 알림
+
+- `manifest.webmanifest` + `sw.js`로 홈 화면 설치를 지원하며, 팀 엠블럼 이미지를 앱 아이콘으로 사용합니다.
+- Web Push(VAPID, `web-push` 패키지)로 브라우저/PWA 구독자에게 알림을 보냅니다(`lib/push.ts`).
+  - 신규 경기 등록 시 전체 구독자에게 알림
+  - 경기 종료 후 비품 담당자 4칸이 비어 있으면 운영진에게 입력 요청 알림
+- 만료된 푸시 구독(410/404 응답)은 자동으로 DB에서 정리됩니다.
+
+## 자동화 (Cron)
+
+Vercel Cron(`vercel.json`)으로 매일 두 번 실행됩니다 (Hobby 플랜 제약상 하루 1회씩):
+
+| 스케줄(UTC) | 경로 | 내용 |
+| --- | --- | --- |
+| 매일 21:00 | `/api/cron/squad` | 3일 이내 경기 중 스쿼드가 없거나 옛 포메이션인 경기에 자동으로 스쿼드 생성 |
+| 매일 12:00 | `/api/cron/equipment-reminder` | 당일 경기 중 종료 후 30분이 지나도 비품 담당자 입력이 안 끝난 경기가 있으면 운영진에게 푸시 알림(경기당 1회만) |
+
+팀 맥미니(로컬 서버)에서는 `launchd`로 아래 자동화도 함께 운영됩니다.
+
+- **미투표자 벌금 안내** (`fine-notices/`): 매월 1일 00:01에 `/api/admin/monthly-nonvoters`를 호출해 그 달 미투표자를 조회하고, Messages.app(iMessage 우선, 안 되면 SMS)으로 벌금 안내 문자를 자동 발송합니다. `DRY_RUN` 플래그로 실발송 여부를 안전하게 제어합니다.
+
+## 외부 연동 (맥미니 게이트웨이)
+
+`ollama-gateway/`의 Bearer 토큰 인증 프록시가 Vercel 서버와 팀 맥미니를 연결합니다(ngrok 터널, 주소 변경 시 Vercel 환경변수 자동 갱신).
+
+- **AI 경기 기록 파싱**: 로컬 Ollama(OpenAI 호환 API)에 메모를 보내 쿼터별 스코어·득점자·어시스트를 JSON으로 추출.
+- **SMS 발송**: 같은 게이트웨이의 `/sms/send` 경로로 AppleScript(Messages.app)를 통해 문자를 보냅니다. 아이디/비밀번호 찾기 인증번호, 미투표자 벌금 안내에 사용됩니다.
+
+## 기술 스택 · 아키텍처
+
+- **프레임워크**: Next.js 16 (App Router) + React 19 + TypeScript
+- **스타일**: Tailwind CSS 4
+- **DB**: `DATABASE_URL`이 있으면 PostgreSQL(Supabase 등, `lib/pg.ts`), 없으면 로컬 SQLite(`better-sqlite3`, `lib/sqlite.ts`) — `lib/db.ts`가 두 구현을 동일한 인터페이스로 감싸서 API 라우트는 어떤 DB인지 신경 쓰지 않습니다.
+- **인증**: 자체 세션 쿠키 + bcryptjs
+- **푸시 알림**: `web-push` (VAPID)
+- **AI/SMS**: 맥미니 로컬 게이트웨이 경유 (Ollama, Messages.app)
+- **배포**: Vercel (서울 리전 `bom1`), Vercel Cron
+
+## 프로젝트 구조
+
+```
+app/
+  page.tsx                 # 홈
+  schedule/, events/[id]/  # 일정 목록/상세(투표·스쿼드·기록·MVP·댓글)
+  polls/, notice/, ranking/, members/, hall-of-fame/
+  admin/, admin/fines/, admin/historical-stats/
+  login/, signup/, find-id/, reset-password/, account/
+  api/                      # 위 화면에 대응하는 REST 라우트 + cron 라우트
+components/                 # Nav, MonthCalendar, VoteButtons, AiRecordImport, PushPrompt 등
+lib/
+  db.ts                     # sqlite/pg 라우팅
+  sqlite.ts / pg.ts         # DB 구현체
+  auth.ts                   # 세션/비밀번호
+  points.ts / rules.ts / squad.ts / season.ts / roles.ts  # 도메인 규칙
+  llm.ts / sms.ts / push.ts # 외부 연동
+  ics.ts                    # 캘린더 피드
+  types.ts                  # 공용 타입
+ollama-gateway/              # 맥미니 게이트웨이 (AI + SMS)
+fine-notices/                 # 미투표자 벌금 문자 자동발송 (launchd)
+docs/service-guide.html       # 팀원용 서비스 가이드 (설치 방법 포함)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 로컬 개발
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+[http://localhost:3000](http://localhost:3000)에서 확인합니다. `DATABASE_URL`을 설정하지 않으면 `/data/`에 로컬 SQLite 파일이 생성됩니다.
 
-## Learn More
+```bash
+npm run build   # 프로덕션 빌드
+npm run start   # 프로덕션 서버 실행
+npm run lint    # ESLint
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 환경 변수
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 변수 | 용도 |
+| --- | --- |
+| `DATABASE_URL` | 설정 시 Postgres(Supabase) 사용, 없으면 로컬 SQLite |
+| `SESSION_SECRET` | 세션 쿠키 서명 비밀키 |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Web Push(PWA 알림) |
+| `OLLAMA_GATEWAY_URL` / `OLLAMA_GATEWAY_SECRET` / `OLLAMA_MODEL` | 맥미니 AI 게이트웨이 (경기 기록 자동 입력, SMS 발송 공용) |
+| `CALENDAR_FEED_SECRET` | 일정 iCalendar 구독 피드 토큰 |
+| `FINE_NOTICE_SECRET` | 맥미니 벌금 안내 스크립트가 세션 로그인 없이 API를 호출하기 위한 전용 토큰 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 배포
 
-## Deploy on Vercel
+Vercel에 배포하며(`vercel.json`에 리전 `bom1`, cron 스케줄 정의), 위 환경 변수를 Vercel 프로젝트 설정에 등록하면 됩니다. 자세한 배포 방법은 [Next.js 배포 문서](https://nextjs.org/docs/app/building-your-application/deploying)를 참고하세요.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+날짜별 상세 변경 이력은 [CHANGELOG.md](./CHANGELOG.md)에서 확인할 수 있습니다.
