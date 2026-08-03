@@ -85,3 +85,14 @@ export async function requireAdmin(): Promise<SessionUser | null> {
   if (!user || user.status !== "approved" || user.role !== "admin") return null;
   return session;
 }
+
+/**
+ * "로그인한 멤버라면 누구나" 허용하는 액션(스쿼드 편집, 댓글 등)에서 쓰는
+ * 가드. requireAdmin과 달리 세션 토큰만 확인하고 DB를 다시 조회하지
+ * 않는다 — 댓글 작성 체크와 같은 수준.
+ */
+export async function requireMember(): Promise<SessionUser | null> {
+  const session = await getSessionUser();
+  if (!session?.memberId) return null;
+  return session;
+}

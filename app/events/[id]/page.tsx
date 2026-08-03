@@ -219,7 +219,8 @@ export default function EventDetailPage({
   };
   const rosterIds = isScrimmage ? teamRosterIds(currentSquad) : attendIds;
   const isSquadLocked = isSquadConfirmed(currentSquad);
-  const canEditSquad = !isSquadLocked || isAdmin;
+  // 확정 전엔 로그인한 멤버까지만 수정 가능(서버도 동일하게 검사한다).
+  const canEditSquad = isAdmin || (!isSquadLocked && myId != null);
   // 반대 팀으로 옮기는 건 두 팀 스쿼드를 동시에 바꾸는 조작이라, 지금 팀뿐
   // 아니라 반대 팀도 잠겨있지 않아야(또는 운영진이어야) 허용한다.
   const otherTeamSquad = activeTeam === "B" ? event.squad : event.scrimmageSquad;
@@ -1324,7 +1325,9 @@ export default function EventDetailPage({
             {" "}운영진 {SQUAD_APPROVAL_THRESHOLD}명 이상이 승인하면 자동으로 확정돼요.
             {canEditSquad
               ? " 아래 선수 아이콘을 드래그해서 다른 자리와 맞바꿀 수 있어요."
-              : " 스쿼드가 확정돼서 운영진만 수정할 수 있어요."}
+              : isSquadLocked
+                ? " 스쿼드가 확정돼서 운영진만 수정할 수 있어요."
+                : " 로그인한 멤버만 수정할 수 있어요."}
           </p>
 
           {currentSquad ? (

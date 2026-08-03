@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireMember } from "@/lib/auth";
 import { getEvent, getVotes, listMembers, updateEvent } from "@/lib/db";
 import { generateSquad, isSquadConfirmed } from "@/lib/squad";
 
@@ -6,6 +6,13 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!(await requireMember())) {
+    return Response.json(
+      { error: "로그인한 멤버만 스쿼드를 만들 수 있어요." },
+      { status: 403 }
+    );
+  }
+
   const { id } = await params;
   const eventId = Number(id);
   const event = await getEvent(eventId);

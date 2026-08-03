@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireMember } from "@/lib/auth";
 import {
   deleteEvent,
   getEvent,
@@ -86,9 +86,16 @@ export async function PATCH(
     const locked =
       (body.squad !== undefined && isSquadConfirmed(current?.squad)) ||
       (body.scrimmageSquad !== undefined && isSquadConfirmed(current?.scrimmageSquad));
-    if (locked && !(await requireAdmin())) {
+    if (locked) {
+      if (!(await requireAdmin())) {
+        return Response.json(
+          { error: "확정된 스쿼드는 운영진만 수정할 수 있어요." },
+          { status: 403 }
+        );
+      }
+    } else if (!(await requireMember())) {
       return Response.json(
-        { error: "확정된 스쿼드는 운영진만 수정할 수 있어요." },
+        { error: "로그인한 멤버만 스쿼드를 수정할 수 있어요." },
         { status: 403 }
       );
     }
