@@ -743,6 +743,17 @@ export function addComment(eventId: number, memberId: number, body: string): Com
   };
 }
 
+export function getComment(id: number): CommentRow | null {
+  const r = getDb().prepare("SELECT * FROM comments WHERE id=?").get(id) as
+    | CommentDbRow
+    | undefined;
+  return r ? toComment(r) : null;
+}
+
+export function deleteComment(id: number) {
+  getDb().prepare("DELETE FROM comments WHERE id=?").run(id);
+}
+
 // ---------- historical stats (앱 도입 이전 누적 기록) ----------
 type HistoricalDbRow = {
   member_id: number;

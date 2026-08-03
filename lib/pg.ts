@@ -744,6 +744,17 @@ export async function addComment(
   return toComment(rows[0]);
 }
 
+export async function getComment(id: number): Promise<CommentRow | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM comments WHERE id=$1", [id]);
+  return rows[0] ? toComment(rows[0]) : null;
+}
+
+export async function deleteComment(id: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM comments WHERE id=$1", [id]);
+}
+
 function toHistorical(r: {
   member_id: number;
   games: number;

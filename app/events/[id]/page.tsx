@@ -383,6 +383,11 @@ export default function EventDetailPage({
     }
   };
 
+  const removeComment = async (commentId: number) => {
+    await fetch(`/api/events/${id}/comments/${commentId}`, { method: "DELETE" });
+    load();
+  };
+
   const adminAddAttend = async () => {
     if (!adminAddPick) return;
     await fetch(`/api/events/${id}/vote`, {
@@ -1131,11 +1136,21 @@ export default function EventDetailPage({
           ) : (
             <div className="mb-2 space-y-1.5">
               {comments.map((c) => (
-                <p key={c.id} className="text-sm">
-                  <span className="font-semibold">
-                    {memberById.get(c.memberId)?.name ?? "?"}
+                <p key={c.id} className="flex items-start justify-between gap-2 text-sm">
+                  <span>
+                    <span className="font-semibold">
+                      {memberById.get(c.memberId)?.name ?? "?"}
+                    </span>
+                    <span className="ml-1.5 text-zinc-600">{c.body}</span>
                   </span>
-                  <span className="ml-1.5 text-zinc-600">{c.body}</span>
+                  {(myId === c.memberId || isAdmin) && (
+                    <button
+                      onClick={() => removeComment(c.id)}
+                      className="shrink-0 text-xs text-zinc-400 hover:text-red-500"
+                    >
+                      삭제
+                    </button>
+                  )}
                 </p>
               ))}
             </div>

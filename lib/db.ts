@@ -187,6 +187,12 @@ export async function addComment(
     ? pg.addComment(eventId, memberId, body)
     : sqlite.addComment(eventId, memberId, body);
 }
+export async function getComment(id: number): Promise<CommentRow | null> {
+  return usePg ? pg.getComment(id) : sqlite.getComment(id);
+}
+export async function deleteComment(id: number) {
+  return usePg ? pg.deleteComment(id) : sqlite.deleteComment(id);
+}
 
 export async function getAllHistoricalStats(): Promise<HistoricalStats[]> {
   return usePg ? pg.getAllHistoricalStats() : sqlite.getAllHistoricalStats();
