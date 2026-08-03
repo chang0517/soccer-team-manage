@@ -1,4 +1,4 @@
-# Raven FC
+# Soccer-team-manage (Raven FC)
 
 조기축구팀 **Raven FC**의 일정·투표·스쿼드·기록·랭킹을 관리하는 팀 전용 웹앱(PWA)입니다.
 [Next.js](https://nextjs.org) App Router + TypeScript로 만들어졌고, 모바일 홈 화면에 설치해 쓰는 것을 기준으로 설계되어 있습니다.
