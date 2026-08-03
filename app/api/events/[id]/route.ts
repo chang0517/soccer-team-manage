@@ -1,4 +1,4 @@
-import { requireAdmin, requireMember } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import {
   deleteEvent,
   getEvent,
@@ -65,7 +65,8 @@ export async function GET(
 }
 
 // 일정의 이름/유형/일시/장소/상대팀 같은 기본 정보는 운영진만 고칠 수 있다
-// (참석 투표, 스쿼드, 비고란 등 나머지 필드는 기존대로 누구나 PATCH 가능).
+// (참석 투표, 비고란 등 나머지 필드는 기존대로 누구나 PATCH 가능. 스쿼드는
+// 위에서 별도로 운영진만 가능하도록 검사한다).
 const ADMIN_ONLY_FIELDS = [
   "title",
   "type",
@@ -81,24 +82,14 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await request.json();
-  if (body.squad !== undefined || body.scrimmageSquad !== undefined) {
-    const current = await getEvent(Number(id));
-    const locked =
-      (body.squad !== undefined && isSquadConfirmed(current?.squad)) ||
-      (body.scrimmageSquad !== undefined && isSquadConfirmed(current?.scrimmageSquad));
-    if (locked) {
-      if (!(await requireAdmin())) {
-        return Response.json(
-          { error: "확정된 스쿼드는 운영진만 수정할 수 있어요." },
-          { status: 403 }
-        );
-      }
-    } else if (!(await requireMember())) {
-      return Response.json(
-        { error: "로그인한 멤버만 스쿼드를 수정할 수 있어요." },
-        { status: 403 }
-      );
-    }
+  if (
+    (body.squad !== undefined || body.scrimmageSquad !== undefined) &&
+    !(await requireAdmin())
+  ) {
+    return Response.json(
+      { error: "스쿼드는 운영진만 수정할 수 있어요." },
+      { status: 403 }
+    );
   }
   if (ADMIN_ONLY_FIELDS.some((f) => body[f] !== undefined) && !(await requireAdmin())) {
     return Response.json(
