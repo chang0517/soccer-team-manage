@@ -166,20 +166,19 @@ export default function EventDetailPage({
   // load()가 이벤트를 다 받아온 다음에야 날씨를 요청하면 그만큼 늦게
   // 뜬다 — id는 라우트 파라미터로 이미 알고 있으니 load()와 동시에 바로
   // 요청한다(서버가 event.type을 판단해 매치가 아니면 null을 준다).
-  useEffect(() => {
-    let cancelled = false;
+  // event.date/time/location을 의존성에 넣으면 load()가 끝나 그 값들이
+  // 채워질 때 이펙트가 다시 돌면서 이 병렬 요청 자체가 무의미해지므로,
+  // id에만 반응하고 정보 수정 후에는 saveInfo에서 직접 다시 부른다.
+  const loadWeather = useCallback(() => {
     fetch(`/api/events/${id}/weather`)
       .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setWeather(d.weather ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setWeather(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, event?.type, event?.date, event?.time, event?.location]);
+      .then((d) => setWeather(d.weather ?? null))
+      .catch(() => setWeather(null));
+  }, [id]);
+
+  useEffect(() => {
+    loadWeather();
+  }, [loadWeather]);
 
   if (!event) return <p className="py-10 text-center text-zinc-400">불러오는 중…</p>;
 
@@ -763,6 +762,7 @@ export default function EventDetailPage({
     setInfoSaving(false);
     setEditingInfo(false);
     load();
+    loadWeather();
   };
 
   const notifyNonVoters = async () => {

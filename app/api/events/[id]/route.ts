@@ -56,12 +56,12 @@ export async function GET(
     }
   }
 
-  return Response.json({
-    event,
-    votes: await getVotes(event.id),
-    records: await getRecords(event.id),
-    mvpVotes: await getMvpVotes(event.id),
-  });
+  const [votes, records, mvpVotes] = await Promise.all([
+    getVotes(event.id),
+    getRecords(event.id),
+    getMvpVotes(event.id),
+  ]);
+  return Response.json({ event, votes, records, mvpVotes });
 }
 
 // 일정의 이름/유형/일시/장소/상대팀 같은 기본 정보는 운영진만 고칠 수 있다
