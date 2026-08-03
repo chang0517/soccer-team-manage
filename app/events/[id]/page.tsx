@@ -8,6 +8,7 @@ import TimePicker from "@/components/TimePicker";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
+import type { MatchWeather } from "@/lib/weather";
 import { ATTEND_CAP, isVotingClosed } from "@/lib/rules";
 import {
   FORMATION_SLOTS,
@@ -36,6 +37,19 @@ import type {
 } from "@/lib/types";
 
 const CATEGORY_ORDER: PosCategory[] = ["ATT", "MID", "DEF"];
+
+const WEATHER_EMOJI: Record<string, string> = {
+  맑음: "☀️",
+  구름많음: "⛅",
+  흐림: "☁️",
+  비: "🌧️",
+  "비/눈": "🌨️",
+  눈: "❄️",
+  소나기: "🌦️",
+  빗방울: "🌦️",
+  빗방울눈날림: "🌨️",
+  눈날림: "🌨️",
+};
 
 interface GoalEntryDraft {
   key: string;
@@ -74,6 +88,7 @@ export default function EventDetailPage({
   const myId = user?.memberId ?? null;
   const [activeQuarter, setActiveQuarter] = useState(0);
   const [activeTeam, setActiveTeam] = useState<"A" | "B">("A");
+  const [weather, setWeather] = useState<MatchWeather | null>(null);
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestForm, setGuestForm] = useState<{
     name: string;
@@ -159,6 +174,27 @@ export default function EventDetailPage({
   useEffect(() => {
     load();
   }, [load]);
+
+  // 날씨는 스쿼드 편집 등으로 load()가 재호출될 때마다 다시 부를 필요가
+  // 없어서, 날짜·시각·장소가 실제로 바뀔 때만 따로 불러온다.
+  useEffect(() => {
+    if (!event || event.type !== "match") {
+      setWeather(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/events/${id}/weather`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setWeather(d.weather ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setWeather(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, event?.type, event?.date, event?.time, event?.location]);
 
   if (!event) return <p className="py-10 text-center text-zinc-400">불러오는 중…</p>;
 
@@ -915,6 +951,14 @@ export default function EventDetailPage({
               {formatDate(event.date, event.time)}
               {event.location && ` · ${event.location}`}
             </p>
+            {weather && (
+              <p className="mt-1 text-sm font-semibold text-zinc-600">
+                {weather.pty ? WEATHER_EMOJI[weather.pty] : weather.sky ? WEATHER_EMOJI[weather.sky] : ""}{" "}
+                {weather.pty ?? weather.sky ?? ""}
+                {weather.tmp != null && ` · ${weather.tmp}°C`}
+                {weather.pop != null && ` · 강수 ${weather.pop}%`}
+              </p>
+            )}
           </>
         )}
         {event.scored != null && event.conceded != null && (
