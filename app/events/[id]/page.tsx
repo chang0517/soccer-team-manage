@@ -228,12 +228,13 @@ export default function EventDetailPage({
   const squadApprovedBy = currentSquad?.approvedBy ?? [];
   const iApprovedSquad = myId != null && squadApprovedBy.includes(myId);
   const hasAbsenteeInSquad =
-    currentSquad?.quarters.some((q) =>
-      q.starters.some(
-        (s) =>
-          (s.memberId != null && statusOf(s.memberId) === "absent") ||
-          (s.memberId2 != null && statusOf(s.memberId2) === "absent")
-      )
+    currentSquad?.quarters.some(
+      (q) =>
+        q.starters.some(
+          (s) =>
+            (s.memberId != null && statusOf(s.memberId) === "absent") ||
+            (s.memberId2 != null && statusOf(s.memberId2) === "absent")
+        ) || q.bench.some((mid) => statusOf(mid) === "absent")
     ) ?? false;
 
   const mvpTally = (() => {
@@ -515,8 +516,10 @@ export default function EventDetailPage({
     load();
   };
 
-  // 불참으로 바뀐 멤버가 스쿼드에 남아있으면 그 자리에서만 빼낸다(다른 슬롯엔
-  // 영향 없음). 승인은 스쿼드 구성이 바뀌는 것이므로 재승인이 필요하도록 비운다.
+  // 불참으로 바뀐 멤버를 스쿼드(선발+벤치)에서 완전히 빼낸다. 내전 모드의
+  // rosterIds는 참석 투표가 아니라 팀 배정 기준이라, 불참 처리해도 그냥 두면
+  // 벤치로 다시 채워져버리므로 여기서 명시적으로 걸러낸다. 승인은 스쿼드
+  // 구성이 바뀌는 것이므로 재승인이 필요하도록 비운다.
   const removeAbsenteesFromSquad = async () => {
     if (!currentSquad) return;
     const isAbsent = (mid: number | null | undefined) =>
@@ -531,7 +534,10 @@ export default function EventDetailPage({
       const starterIds = new Set(
         starters.flatMap((s) => [s.memberId, s.memberId2 ?? null]).filter((v): v is number => v != null)
       );
-      return { starters, bench: rosterIds.filter((mid) => !starterIds.has(mid)) };
+      return {
+        starters,
+        bench: rosterIds.filter((mid) => !starterIds.has(mid) && !isAbsent(mid)),
+      };
     });
     const squad: SquadData = { ...currentSquad, quarters, confirmed: false, approvedBy: [] };
     await fetch(`/api/events/${id}`, {
