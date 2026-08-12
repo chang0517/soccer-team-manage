@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { TacticsScene } from "@/lib/types";
 
 const STEP_DURATION_MS = 1800;
+// 선수/공 아이콘의 CSS transition 시간과 반드시 같아야 한다(아래 duration-[900ms]).
+const MOVE_DURATION_MS = 900;
 
 const TEAM_STYLE: Record<"A" | "B", string> = {
   A: "bg-blue-600 text-white",
@@ -12,9 +14,19 @@ const TEAM_STYLE: Record<"A" | "B", string> = {
 
 export default function TacticsBoard({ scene }: { scene: TacticsScene }) {
   const [stepIdx, setStepIdx] = useState(0);
+  // 화살표는 stepIdx가 바로 바뀌어도 곧장 다음 단계 것으로 넘어가지 않고,
+  // 공/선수가 실제로 슬라이드하는 동안(MOVE_DURATION_MS)은 "떠나는" 단계의
+  // 화살표를 그대로 보여준다 — 그래야 공이 화살표를 따라 움직이는 것처럼
+  // 보인다. 움직임이 끝나면 그제서야 새 단계 자신의 화살표로 바뀐다.
+  const [arrowStepIdx, setArrowStepIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastStep = scene.steps.length - 1;
+
+  useEffect(() => {
+    const t = setTimeout(() => setArrowStepIdx(stepIdx), MOVE_DURATION_MS);
+    return () => clearTimeout(t);
+  }, [stepIdx]);
 
   useEffect(() => {
     if (!playing) return;
@@ -33,6 +45,7 @@ export default function TacticsBoard({ scene }: { scene: TacticsScene }) {
   }, [playing, lastStep]);
 
   const step = scene.steps[stepIdx];
+  const arrowStep = scene.steps[arrowStepIdx];
   const togglePlay = () => {
     if (!playing && stepIdx >= lastStep) setStepIdx(0);
     setPlaying((p) => !p);
@@ -68,8 +81,8 @@ export default function TacticsBoard({ scene }: { scene: TacticsScene }) {
               <path d="M0,0 L6,3 L0,6 Z" fill="#fde047" />
             </marker>
           </defs>
-          {step.arrows.map((a, i) => {
-            const from = step.positions[a.from];
+          {arrowStep.arrows.map((a, i) => {
+            const from = arrowStep.positions[a.from];
             if (!from) return null;
             return (
               <line
