@@ -175,6 +175,8 @@ function createDb(): Database.Database {
       status TEXT NOT NULL DEFAULT 'pending',
       result TEXT,
       error TEXT,
+      raw_response TEXT,
+      model TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
     );
   `);
@@ -221,6 +223,9 @@ function createDb(): Database.Database {
   }[];
   if (tacticsJobCols.length > 0 && !tacticsJobCols.some((c) => c.name === "raw_response")) {
     db.exec("ALTER TABLE tactics_jobs ADD COLUMN raw_response TEXT");
+  }
+  if (tacticsJobCols.length > 0 && !tacticsJobCols.some((c) => c.name === "model")) {
+    db.exec("ALTER TABLE tactics_jobs ADD COLUMN model TEXT NOT NULL DEFAULT ''");
   }
   seedIfEmpty(db);
   return db;
@@ -728,6 +733,7 @@ type TacticsJobDbRow = {
   result: string | null;
   error: string | null;
   raw_response: string | null;
+  model: string;
   created_at: string;
 };
 
@@ -740,11 +746,16 @@ function toTacticsJob(r: TacticsJobDbRow): TacticsJobRow {
     result: r.result ? (JSON.parse(r.result) as TacticsScene) : null,
     error: r.error,
     rawResponse: r.raw_response,
+    model: r.model,
     createdAt: r.created_at,
   };
 }
 
-export function createTacticsJob(userId: number, description: string): TacticsJobRow {
+export function createTacticsJob(
+  userId: number,
+  description: string,
+  model: string
+): TacticsJobRow {
   const db = getDb();
   // 오래된 작업이 계속 쌓이지 않게, 새 작업을 만들 때마다 하루 지난 것들을 지운다.
   db.prepare("DELETE FROM tactics_jobs WHERE created_at < ?").run(
@@ -753,9 +764,9 @@ export function createTacticsJob(userId: number, description: string): TacticsJo
   const createdAt = new Date().toISOString();
   const r = db
     .prepare(
-      "INSERT INTO tactics_jobs (user_id, description, status, created_at) VALUES (?, ?, 'pending', ?)"
+      "INSERT INTO tactics_jobs (user_id, description, status, model, created_at) VALUES (?, ?, 'pending', ?, ?)"
     )
-    .run(userId, description, createdAt);
+    .run(userId, description, model, createdAt);
   const row = db
     .prepare("SELECT * FROM tactics_jobs WHERE id=?")
     .get(Number(r.lastInsertRowid)) as TacticsJobDbRow;

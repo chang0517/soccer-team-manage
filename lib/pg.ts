@@ -191,6 +191,8 @@ async function init() {
       status TEXT NOT NULL DEFAULT 'pending',
       result JSONB,
       error TEXT,
+      raw_response TEXT,
+      model TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
@@ -218,6 +220,9 @@ async function init() {
     "ALTER TABLE polls ADD COLUMN IF NOT EXISTS multi_select BOOLEAN NOT NULL DEFAULT true"
   );
   await pool.query("ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS raw_response TEXT");
+  await pool.query(
+    "ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT ''"
+  );
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
@@ -727,6 +732,7 @@ function toTacticsJob(r: {
   result: TacticsScene | null;
   error: string | null;
   raw_response: string | null;
+  model: string;
   created_at: string;
 }): TacticsJobRow {
   return {
@@ -737,20 +743,22 @@ function toTacticsJob(r: {
     result: r.result,
     error: r.error,
     rawResponse: r.raw_response,
+    model: r.model,
     createdAt: r.created_at,
   };
 }
 
 export async function createTacticsJob(
   userId: number,
-  description: string
+  description: string,
+  model: string
 ): Promise<TacticsJobRow> {
   const pool = await ready();
   // 오래된 작업이 계속 쌓이지 않게, 새 작업을 만들 때마다 하루 지난 것들을 지운다.
   await pool.query("DELETE FROM tactics_jobs WHERE created_at < now() - interval '1 day'");
   const { rows } = await pool.query(
-    "INSERT INTO tactics_jobs (user_id, description, status) VALUES ($1, $2, 'pending') RETURNING *",
-    [userId, description]
+    "INSERT INTO tactics_jobs (user_id, description, status, model) VALUES ($1, $2, 'pending', $3) RETURNING *",
+    [userId, description, model]
   );
   return toTacticsJob(rows[0]);
 }

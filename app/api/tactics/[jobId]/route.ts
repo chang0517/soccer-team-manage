@@ -22,6 +22,8 @@ export async function GET(
     result: job.result,
     error: job.error,
     rawResponse: isAdmin ? job.rawResponse : null,
+    model: job.model,
+    createdAt: job.createdAt,
   });
 }
 

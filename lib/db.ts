@@ -179,11 +179,12 @@ export async function consumePhoneVerification(id: number) {
 
 export async function createTacticsJob(
   userId: number,
-  description: string
+  description: string,
+  model: string
 ): Promise<TacticsJobRow> {
   return usePg
-    ? pg.createTacticsJob(userId, description)
-    : sqlite.createTacticsJob(userId, description);
+    ? pg.createTacticsJob(userId, description, model)
+    : sqlite.createTacticsJob(userId, description, model);
 }
 export async function getTacticsJob(id: number): Promise<TacticsJobRow | null> {
   return usePg ? pg.getTacticsJob(id) : sqlite.getTacticsJob(id);

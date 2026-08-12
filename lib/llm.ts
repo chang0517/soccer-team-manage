@@ -80,13 +80,19 @@ export interface GatewayMessage {
  * Ollama의 OpenAI 호환 /v1/chat/completions로 요청을 그대로 전달한다.
  * 브라우저가 아니라 서버가 호출하므로 사용자는 어떤 기기에서든 쓸 수 있다.
  */
+/** 게이트웨이가 호출할 모델명. 진행 상황 표시 등 다른 곳에서도 같은 값을
+ * 쓸 수 있게 별도로 내보낸다. */
+export function getConfiguredModel(): string {
+  return process.env.OLLAMA_MODEL || "gemma4";
+}
+
 export async function callOllamaGateway(
   messages: GatewayMessage[],
   timeoutMs = 45000
 ): Promise<string> {
   const gatewayUrl = process.env.OLLAMA_GATEWAY_URL;
   const secret = process.env.OLLAMA_GATEWAY_SECRET;
-  const model = process.env.OLLAMA_MODEL || "gemma4";
+  const model = getConfiguredModel();
 
   if (!gatewayUrl || !secret) {
     throw new Error(

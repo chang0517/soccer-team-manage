@@ -13,6 +13,16 @@ const POLL_INTERVAL_MS = 2500;
 // 서버 쪽 백그라운드 생성 예산(최대 800초)보다 여유 있게 잡는다 — 그보다
 // 짧으면 서버가 아직 정상적으로 작업 중인데 클라이언트가 먼저 포기해버린다.
 const POLL_GIVE_UP_MS = 14 * 60 * 1000;
+const SERVER_BUDGET_SEC = 800;
+
+// 토큰 스트리밍이 아니라서 정확한 진행률은 알 수 없다 — 경과 시간대별로
+// 지금 상황을 정직하게 설명해주는 문구만 보여준다.
+function progressHint(elapsedSec: number): string {
+  if (elapsedSec < 30) return "요청을 맥미니로 전달했어요.";
+  if (elapsedSec < 120) return "맥미니가 생성 중이에요.";
+  if (elapsedSec < 300) return "생각보다 오래 걸리고 있어요 — 모델이 크면 흔한 일이에요.";
+  return "많이 걸리고 있어요. 맥미니가 메모리 압박으로 느려졌을 수 있어요. 계속 기다리거나 취소 후 다시 시도해보세요.";
+}
 
 // 새로고침하거나 앱을 다시 열었을 때도 이전에 만들던 작업이 있으면 이어서
 // 확인한다 — 생성은 화면과 별개로 서버에서 계속 진행 중이었을 수 있다.
@@ -33,6 +43,11 @@ export default function TacticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [scene, setScene] = useState<TacticsScene | null>(null);
   const [rawResponse, setRawResponse] = useState<string | null>(null);
+  // 진행 상황 표시용 — 토큰 스트리밍이 아니라서 정확한 %는 못 보여주지만,
+  // 최소한 "살아있고 얼마나 걸리고 있는지"는 보여준다.
+  const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const pollStartRef = useRef<number>(0);
 
   useEffect(() => {
@@ -52,6 +67,8 @@ export default function TacticsPage() {
         const res = await fetch(`/api/tactics/${jobId}`);
         if (!res.ok) return; // 일시적 오류는 다음 폴링에서 재시도
         const data = await res.json();
+        if (data.model) setModel(data.model);
+        if (data.createdAt) setStartedAt(data.createdAt);
         if (data.status === "done") {
           clearInterval(timer);
           localStorage.removeItem(JOB_ID_KEY);
@@ -73,11 +90,25 @@ export default function TacticsPage() {
     return () => clearInterval(timer);
   }, [jobId, status]);
 
+  // 진행 중일 때 1초마다 경과 시간을 갱신한다(폴링과는 별개 — 서버를
+  // 다시 부르지 않고 화면 타이머만 움직인다).
+  useEffect(() => {
+    if (status !== "pending" || !startedAt) return;
+    const start = new Date(startedAt).getTime();
+    const timer = setInterval(() => {
+      setElapsedSec(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [status, startedAt]);
+
   const generate = async () => {
     if (!description.trim() || status === "pending") return;
     setError(null);
     setScene(null);
     setRawResponse(null);
+    setModel(null);
+    setStartedAt(null);
+    setElapsedSec(0);
     setStatus("pending");
     try {
       const res = await fetch("/api/tactics", {
@@ -89,6 +120,8 @@ export default function TacticsPage() {
       if (!res.ok) throw new Error(data.error || "생성에 실패했어요.");
       localStorage.setItem(JOB_ID_KEY, String(data.jobId));
       pollStartRef.current = Date.now();
+      setModel(data.model ?? null);
+      setStartedAt(data.createdAt ?? null);
       setJobId(data.jobId);
     } catch (e) {
       setStatus("error");
@@ -107,7 +140,12 @@ export default function TacticsPage() {
     }
     setJobId(null);
     setStatus("idle");
+    setModel(null);
+    setStartedAt(null);
+    setElapsedSec(0);
   };
+
+  const elapsedLabel = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`;
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6 md:pb-10">
@@ -150,6 +188,19 @@ export default function TacticsPage() {
           </button>
         )}
       </div>
+
+      {status === "pending" && (
+        <div className="mt-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-800">
+          <p className="font-semibold">
+            ⏱ {elapsedLabel} 경과{model && ` · ${model}`}
+          </p>
+          <p className="mt-1 text-blue-700">{progressHint(elapsedSec)}</p>
+          <p className="mt-1 text-blue-700/70">
+            최대 {Math.round(SERVER_BUDGET_SEC / 60)}분까지 기다려요 — 그 안에 안 끝나면
+            자동으로 실패 처리돼요.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-600">{error}</p>

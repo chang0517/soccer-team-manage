@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { completeTacticsJob, createTacticsJob, failTacticsJob } from "@/lib/db";
+import { getConfiguredModel } from "@/lib/llm";
 import { generateTacticsScene } from "@/lib/tactics";
 
 // 생성이 오래 걸릴 수 있어(맥미니 로컬 모델이 크면 특히) 요청-응답 한 번에
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
   }
   const trimmed = description.trim();
 
-  const job = await createTacticsJob(session.id, trimmed);
+  const job = await createTacticsJob(session.id, trimmed, getConfiguredModel());
 
   after(async () => {
     try {
@@ -47,5 +48,5 @@ export async function POST(request: Request) {
     }
   });
 
-  return Response.json({ jobId: job.id });
+  return Response.json({ jobId: job.id, model: job.model, createdAt: job.createdAt });
 }
