@@ -242,10 +242,9 @@ export async function generateTacticsScene(
       { role: "user", content: description },
     ],
     // 이 생성은 요청-응답을 붙잡지 않고 백그라운드 작업(job)으로 도니까
-    // 경기 기록 파싱보다 훨씬 넉넉하게 잡아도 된다. 맥미니에서 더 큰 로컬
-    // 모델(메모리 여유가 빠듯할 수 있음)을 쓰면 110초도 부족할 수 있어서,
-    // 라우트 maxDuration(280s)보다 짧게 넉넉히 잡아 작업 상태 기록 여유를 남긴다.
-    260000
+    // 완성만 되면 오래 걸려도 괜찮다는 판단으로 아주 넉넉하게 잡는다.
+    // 라우트 maxDuration(800s)보다 짧게 잡아 작업 상태 기록 여유를 남긴다.
+    770000
   );
   try {
     const scene = sanitizeScene(extractJsonObject(raw));

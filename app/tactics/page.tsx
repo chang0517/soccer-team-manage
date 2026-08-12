@@ -10,9 +10,9 @@ const PLACEHOLDER =
 
 const JOB_ID_KEY = "tactics-job-id";
 const POLL_INTERVAL_MS = 2500;
-// 서버 쪽 백그라운드 생성 예산(최대 280초)보다 여유 있게 잡는다 — 그보다
+// 서버 쪽 백그라운드 생성 예산(최대 800초)보다 여유 있게 잡는다 — 그보다
 // 짧으면 서버가 아직 정상적으로 작업 중인데 클라이언트가 먼저 포기해버린다.
-const POLL_GIVE_UP_MS = 5 * 60 * 1000;
+const POLL_GIVE_UP_MS = 14 * 60 * 1000;
 
 // 새로고침하거나 앱을 다시 열었을 때도 이전에 만들던 작업이 있으면 이어서
 // 확인한다 — 생성은 화면과 별개로 서버에서 계속 진행 중이었을 수 있다.
@@ -101,9 +101,9 @@ export default function TacticsPage() {
       <h1 className="mb-1 text-lg font-bold">전술 시뮬레이터</h1>
       <p className="mb-4 text-sm text-zinc-500">
         상황을 글로 설명하면 핵심 인물 몇 명과 움직임 화살표로 전술판 애니메이션을 만들어줘요.
-        팀 맥미니에서 도는 로컬 AI가 만드는 거라 결과가 완벽하지 않을 수 있고, 최대
-        1~2분 걸릴 수 있어요. 생성 중엔 앱을 나가거나 화면을 꺼도 서버에서 계속
-        진행되고, 다시 열면 이어서 확인해요.
+        팀 맥미니에서 도는 로컬 AI가 만드는 거라 결과가 완벽하지 않을 수 있고, 모델
+        크기에 따라 몇 분씩 걸릴 수 있어요. 생성 중엔 앱을 나가거나 화면을 꺼도
+        서버에서 계속 진행되고, 다시 열면 이어서 확인해요.
       </p>
 
       {!user && (
@@ -125,7 +125,7 @@ export default function TacticsPage() {
         disabled={!user || status === "pending" || !description.trim()}
         className="mt-2 w-full rounded-xl bg-blue-700 py-2.5 text-sm font-bold text-white disabled:opacity-40"
       >
-        {status === "pending" ? "만드는 중… (최대 1~2분 걸릴 수 있어요)" : "전술 만들기"}
+        {status === "pending" ? "만드는 중… (몇 분 걸릴 수 있어요)" : "전술 만들기"}
       </button>
 
       {error && (
