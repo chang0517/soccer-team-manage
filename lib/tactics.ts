@@ -104,6 +104,41 @@ function isPos(v: unknown): v is { x: number; y: number } {
 }
 
 /**
+ * 로컬 모델이 서로 다른 선수/공에 거의 같은 좌표를 주는 경우가 있어서
+ * (라벨이 겹쳐 보이고 애니메이션도 안 움직이는 것처럼 보임), 같은 step
+ * 안에서 너무 가까운 좌표끼리는 원 모양으로 살짝 벌려서 항상 구분되게
+ * 만든다.
+ */
+function separateOverlaps(positions: Record<string, { x: number; y: number }>) {
+  const OVERLAP_DIST = 3;
+  const NUDGE_RADIUS = 4.5;
+  const ids = Object.keys(positions);
+  const visited = new Set<string>();
+  for (const id of ids) {
+    if (visited.has(id)) continue;
+    const base = positions[id];
+    const group = ids.filter(
+      (other) =>
+        !visited.has(other) &&
+        Math.abs(positions[other].x - base.x) <= OVERLAP_DIST &&
+        Math.abs(positions[other].y - base.y) <= OVERLAP_DIST
+    );
+    if (group.length < 2) {
+      visited.add(id);
+      continue;
+    }
+    group.forEach((memberId, i) => {
+      visited.add(memberId);
+      const angle = (2 * Math.PI * i) / group.length;
+      positions[memberId] = {
+        x: clampCoord(base.x + NUDGE_RADIUS * Math.cos(angle), base.x),
+        y: clampCoord(base.y + NUDGE_RADIUS * Math.sin(angle), base.y),
+      };
+    });
+  }
+}
+
+/**
  * 게이트웨이(로컬 LLM)가 돌려준 값을 신뢰하지 않고 스키마에 맞게 정리한다.
  * 필드가 비었거나 형식이 어긋나면 잘라내거나 합리적인 값으로 채운다 —
  * 애니메이션 컴포넌트가 항상 완전한 데이터를 받도록 보장한다.
@@ -148,6 +183,8 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
       positions[id] = resolved;
       lastKnownPos.set(id, resolved);
     }
+    separateOverlaps(positions);
+    for (const id of knownIds) lastKnownPos.set(id, positions[id]);
 
     const rawArrows = Array.isArray(stepObj.arrows) ? stepObj.arrows : [];
     const arrows: TacticsArrow[] = rawArrows
