@@ -121,12 +121,20 @@ export async function callOllamaGateway(
     // JSON 모드를 강제해서 앞뒤에 설명이나 코드블록을 덧붙이는 것 같은
     // 형식 이탈을 최대한 줄인다(스키마 자체를 보장하진 않지만, 최소한
     // 파싱 가능한 JSON 객체 하나만 나오게는 해준다).
+    //
+    // reasoning_effort: "none" — Gemma 4 / GLM-4.7처럼 "생각하는" 모델이
+    // 답을 내기 전에 reasoning 토큰을 길게 쓰다가 max_tokens에 걸려 정작
+    // 답을 못 내거나(빈 content), 그 과정에서 스키마와 무관한 이상한 내용을
+    // 만드는 걸 봐서 아예 꺼둔다. boolean(false)이 아니라 문자열이어야
+    // 한다 — boolean을 주면 Ollama가 타입 에러를 낸다. non-reasoning
+    // 모델에는 무시되는 필드라 안전하다.
     body: JSON.stringify({
       model,
       stream: false,
       messages,
       response_format: { type: "json_object" },
       max_tokens: maxTokens,
+      reasoning_effort: "none",
     }),
   });
   if (!res.ok) {
