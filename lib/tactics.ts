@@ -7,10 +7,44 @@ const MAX_STEPS = 10;
 // 좌표계는 스쿼드 화면(lib/squad.ts의 FORMATION_SLOTS)과 동일: 세로로 긴
 // 축구장을 위에서 내려다본 기준으로 x 0~100(왼쪽~오른쪽), y 0~100
 // (상대 골대 쪽 0 ~ 우리 골대 쪽 100, 즉 공격은 y가 작아지는 방향).
+//
+// 로컬 모델이 연속적인 숫자 좌표를 직접 계산하게 하면 값이 겹치거나
+// 튀는 경우가 잦았다(분류가 아니라 회귀 문제라 훨씬 어려움). 그래서
+// 경기장을 세로 5단(A~E) × 가로 3열(1~3), 15개 구역으로 미리 나눠두고
+// 모델은 숫자 대신 이 구역 코드만 고르게 한다 — "적당한 숫자를 계산"이
+// 아니라 "목록에서 하나 고르기"로 바꿔서 훨씬 안정적으로 만들려는 목적.
+const PITCH_ZONES: Record<string, { x: number; y: number; label: string }> = {
+  A1: { x: 20, y: 6, label: "상대 골문 앞 왼쪽" },
+  A2: { x: 50, y: 6, label: "상대 골문 앞 중앙" },
+  A3: { x: 80, y: 6, label: "상대 골문 앞 오른쪽" },
+  B1: { x: 20, y: 27, label: "상대 진영 왼쪽" },
+  B2: { x: 50, y: 27, label: "상대 진영 중앙" },
+  B3: { x: 80, y: 27, label: "상대 진영 오른쪽" },
+  C1: { x: 20, y: 50, label: "하프라인 왼쪽" },
+  C2: { x: 50, y: 50, label: "하프라인 중앙" },
+  C3: { x: 80, y: 50, label: "하프라인 오른쪽" },
+  D1: { x: 20, y: 73, label: "우리 진영 왼쪽" },
+  D2: { x: 50, y: 73, label: "우리 진영 중앙" },
+  D3: { x: 80, y: 73, label: "우리 진영 오른쪽" },
+  E1: { x: 20, y: 94, label: "우리 골문 앞 왼쪽" },
+  E2: { x: 50, y: 94, label: "우리 골문 앞 중앙" },
+  E3: { x: 80, y: 94, label: "우리 골문 앞 오른쪽" },
+};
+const DEFAULT_ZONE = "C2";
+
+const ZONE_LEGEND = Object.entries(PITCH_ZONES)
+  .map(([code, z]) => `${code}=${z.label}`)
+  .join(", ");
+
 const SYSTEM_PROMPT = `당신은 조기축구 팀의 전술 상황을 애니메이션으로 보여주기 위한
 장면 데이터를 만드는 도우미입니다. 사용자가 텍스트로 설명하는 축구 상황을
 아래 JSON 스키마 하나로만 답하세요. 설명, 코드블록, 다른 텍스트 없이 JSON
 객체만 출력하세요.
+
+경기장은 15개 구역으로 나뉘어 있습니다(세로 5단 A~E × 가로 3열 1~3).
+공격 방향은 A쪽입니다(A가 상대 골문, E가 우리 골문). 위치는 항상 숫자
+좌표가 아니라 아래 구역 코드 중 하나로만 표현하세요:
+${ZONE_LEGEND}
 
 {
   "title": "상황을 한 줄로 요약한 제목",
@@ -21,46 +55,38 @@ const SYSTEM_PROMPT = `당신은 조기축구 팀의 전술 상황을 애니메�
   "steps": [
     {
       "note": "이 장면에서 무슨 일이 일어나는지 한 문장 설명",
-      "positions": {
-        "p1": { "x": 80, "y": 70 },
-        "ball": { "x": 78, "y": 68 }
-      },
-      "arrows": [
-        { "from": "p1", "to": { "x": 90, "y": 40 } }
-      ]
+      "positions": { "p1": "B3", "ball": "B3" },
+      "arrows": [ { "from": "p1", "to": "A2" } ]
     }
   ]
 }
 
 규칙:
-- 좌표는 세로로 긴 축구장을 위에서 내려다본 기준입니다. x는 왼쪽(0)~
-  오른쪽(100), y는 우리 팀 골대 쪽(100, 아래)에서 상대 팀 골대 쪽(0, 위)
-  까지입니다. 즉 공격은 y가 작아지는 방향입니다.
+- 위치는 반드시 위 15개 구역 코드(A1~E3) 중 하나만 쓰세요. x,y 같은
+  숫자 좌표는 절대 쓰지 마세요.
 - 등장인물은 상황 설명에 나온 핵심 인물만 3~6명으로 제한하세요(전체 22명을
   다 그리지 마세요). team은 우리 팀이면 "A", 상대 팀이면 "B"로 표시하세요.
 - steps 개수는 사용자가 설명한 동작 흐름을 잘 보여줄 수 있게 자유롭게
   정하세요(보통 2~6개, 최대 10개). 동작을 번호나 줄바꿈으로 나열했다면
   참고하되 억지로 그 개수에 딱 맞추려고 부자연스럽게 쪼개거나 합치지는
   마세요 — 중요한 건 개수가 아니라 흐름이 말이 되는 것입니다.
-- 등장하는 모든 선수는 매 step마다 그 상황에 맞게 조금씩이라도 자연스럽게
-  움직여야 합니다. 특정 선수가 여러 step 동안 완전히 같은 자리에 멈춰
-  있다가 갑자기 먼 곳으로 순간이동하듯 튀면 안 됩니다 — 다음에 중요한
-  역할을 할 선수는 미리 그 방향으로 조금씩 다가가는 동선을 만드세요.
-- 골을 넣는 장면이 있다면, 그 슛을 쏘는 선수와 공은 그 step에서 상대
-  골대 바로 앞(y가 대략 0~12 사이)에 있어야 합니다. 그 직전 step들에서
-  그 선수가 골대 쪽으로 점점 다가가는 좌표를 만들어서 골 장면이 갑작스럽지
-  않고 자연스럽게 이어지게 하세요.
+- 등장하는 모든 선수는 매 step마다 그 상황에 맞게 구역이 자연스럽게
+  이어져야 합니다. 다음에 중요한 역할을 할 선수는 미리 그 방향의 인접
+  구역으로 조금씩 다가가듯 만드세요 — 같은 선수가 한 번에 A열에서
+  E열로 건너뛰는 식으로 튀면 안 됩니다.
+- 골을 넣는 장면이 있다면, 그 슛을 쏘는 선수와 공은 그 step에서
+  "A1"/"A2"/"A3"(상대 골문 앞) 중 하나에 있어야 합니다.
 - 각 step의 positions에는 등장하는 모든 players와(공을 쓰는 상황이면)
-  "ball"의 그 시점 좌표를 전부 포함하세요 — 이전 step과 위치가 같아도
+  "ball"의 그 시점 구역을 전부 포함하세요 — 이전 step과 구역이 같아도
   생략하지 말고 그대로 다시 적으세요. 스키마에 없는 필드나 부가 설명
   없이 딱 이 구조로만 채우세요.
-- arrows는 그 step에서 다음 위치로 움직이는 걸 화면에 화살표로 보여주고
-  싶을 때만 넣으세요(선택 사항, 없으면 빈 배열).
+- arrows는 그 step에서 다음 구역으로 움직이는 걸 화면에 화살표로 보여주고
+  싶을 때만 넣으세요(선택 사항, 없으면 빈 배열). to는 구역 코드입니다.
 - 공이 등장하는 상황이면 hasBall을 true로 하고 모든 step의 positions에
-  "ball" 좌표를 포함하세요. 공이 중요하지 않은 상황이면 hasBall을 false로
+  "ball" 구역을 포함하세요. 공이 중요하지 않은 상황이면 hasBall을 false로
   하고 ball은 넣지 마세요.
-- 설명이 모호하거나 구체적인 좌표를 알 수 없어도, 축구 상식에 맞게
-  합리적으로 추측해서 채우세요. null이나 빈 값은 쓰지 마세요.
+- 설명이 모호해도, 축구 상식에 맞게 가장 가까운 구역으로 합리적으로
+  추측해서 채우세요. null이나 빈 값은 쓰지 마세요.
 
 예시 — 사용자가 이렇게 설명하면:
 "우측 윙백이 가운데 미드에게 패스하고 상대 진영으로 침투한다. 미드가
@@ -76,17 +102,17 @@ const SYSTEM_PROMPT = `당신은 조기축구 팀의 전술 상황을 애니메�
   ],
   "hasBall": true,
   "steps": [
-    { "note": "우측 윙백이 중앙 미드에게 패스", "positions": {"p1":{"x":85,"y":65},"p2":{"x":55,"y":55},"p3":{"x":48,"y":30},"ball":{"x":85,"y":65}}, "arrows": [{"from":"p1","to":{"x":55,"y":55}}] },
-    { "note": "패스 후 윙백이 상대 진영으로 침투", "positions": {"p1":{"x":78,"y":38},"p2":{"x":55,"y":55},"p3":{"x":48,"y":22},"ball":{"x":55,"y":55}}, "arrows": [{"from":"p1","to":{"x":78,"y":38}}] },
-    { "note": "미드가 침투한 윙백에게 다시 패스", "positions": {"p1":{"x":78,"y":38},"p2":{"x":55,"y":55},"p3":{"x":50,"y":16},"ball":{"x":78,"y":38}}, "arrows": [{"from":"p2","to":{"x":78,"y":38}}] },
-    { "note": "윙백이 패스를 받아 스트라이커에게 연결", "positions": {"p1":{"x":78,"y":38},"p2":{"x":55,"y":55},"p3":{"x":50,"y":10},"ball":{"x":50,"y":10}}, "arrows": [{"from":"p1","to":{"x":50,"y":10}}] },
-    { "note": "스트라이커가 골을 넣는다", "positions": {"p1":{"x":78,"y":38},"p2":{"x":55,"y":55},"p3":{"x":50,"y":6},"ball":{"x":50,"y":3}}, "arrows": [] }
+    { "note": "우측 윙백이 중앙 미드에게 패스", "positions": {"p1":"C3","p2":"C2","p3":"B2","ball":"C3"}, "arrows": [{"from":"p1","to":"C2"}] },
+    { "note": "패스 후 윙백이 상대 진영으로 침투", "positions": {"p1":"B3","p2":"C2","p3":"B2","ball":"C2"}, "arrows": [{"from":"p1","to":"B3"}] },
+    { "note": "미드가 침투한 윙백에게 다시 패스", "positions": {"p1":"B3","p2":"C2","p3":"A2","ball":"B3"}, "arrows": [{"from":"p2","to":"B3"}] },
+    { "note": "윙백이 패스를 받아 스트라이커에게 연결", "positions": {"p1":"B3","p2":"C2","p3":"A2","ball":"A2"}, "arrows": [{"from":"p1","to":"A2"}] },
+    { "note": "스트라이커가 골을 넣는다", "positions": {"p1":"B3","p2":"C2","p3":"A2","ball":"A2"}, "arrows": [] }
   ]
 }
 
-스트라이커(p3)가 매 step마다 골대 쪽으로 조금씩 자연스럽게 다가가고,
-마지막 골 장면에서 골대 바로 앞에 있는 것에 주목하세요 — 이렇게 모든
-선수가 매 step마다 자연스럽게 이어지도록 움직여야 합니다.`;
+스트라이커(p3)가 매 step마다 골문 쪽 구역(B2 → A2)으로 자연스럽게 이동해서
+마지막 골 장면에서 A열에 있는 것에 주목하세요 — 이렇게 모든 선수의 구역이
+매 step마다 자연스럽게 이어지도록 움직여야 합니다.`;
 
 function clampCoord(v: unknown, fallback: number): number {
   const n = Number(v);
@@ -95,19 +121,31 @@ function clampCoord(v: unknown, fallback: number): number {
 }
 
 function isPos(v: unknown): v is { x: number; y: number } {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    "x" in v &&
-    "y" in v
-  );
+  return typeof v === "object" && v !== null && "x" in v && "y" in v;
+}
+
+/** 구역 코드("B3") 또는(구식 호환용) {x,y} 객체를 실제 좌표로 바꾼다.
+ * 둘 다 아니면 fallback을 쓴다. */
+function resolveZoneOrPos(
+  v: unknown,
+  fallback: { x: number; y: number }
+): { x: number; y: number } {
+  if (typeof v === "string") {
+    const zone = PITCH_ZONES[v.trim().toUpperCase()];
+    if (zone) return { x: zone.x, y: zone.y };
+    return fallback;
+  }
+  if (isPos(v)) {
+    return { x: clampCoord(v.x, fallback.x), y: clampCoord(v.y, fallback.y) };
+  }
+  return fallback;
 }
 
 /**
  * 로컬 모델이 서로 다른 선수/공에 거의 같은 좌표를 주는 경우가 있어서
  * (라벨이 겹쳐 보이고 애니메이션도 안 움직이는 것처럼 보임), 같은 step
  * 안에서 너무 가까운 좌표끼리는 원 모양으로 살짝 벌려서 항상 구분되게
- * 만든다.
+ * 만든다. 같은 구역을 고른 선수가 여럿이면 자주 발생하므로 여전히 필요.
  */
 function separateOverlaps(positions: Record<string, { x: number; y: number }>) {
   const OVERLAP_DIST = 3;
@@ -165,6 +203,7 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
   if (hasBall) knownIds.add("ball");
 
   const rawSteps = Array.isArray(raw.steps) ? raw.steps : [];
+  const defaultPos = PITCH_ZONES[DEFAULT_ZONE];
   const lastKnownPos = new Map<string, { x: number; y: number }>();
   const steps: TacticsStep[] = rawSteps.slice(0, MAX_STEPS).map((s, stepIdx) => {
     const stepObj = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
@@ -175,11 +214,8 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
 
     const positions: Record<string, { x: number; y: number }> = {};
     for (const id of knownIds) {
-      const p = rawPositions[id];
-      const fallback = lastKnownPos.get(id) ?? { x: 50, y: 50 };
-      const resolved = isPos(p)
-        ? { x: clampCoord(p.x, fallback.x), y: clampCoord(p.y, fallback.y) }
-        : fallback;
+      const fallback = lastKnownPos.get(id) ?? { x: defaultPos.x, y: defaultPos.y };
+      const resolved = resolveZoneOrPos(rawPositions[id], fallback);
       positions[id] = resolved;
       lastKnownPos.set(id, resolved);
     }
@@ -194,16 +230,13 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
           typeof a === "object" &&
           typeof (a as { from?: unknown }).from === "string" &&
           knownIds.has((a as { from: string }).from) &&
-          isPos((a as { to?: unknown }).to)
+          (typeof (a as { to?: unknown }).to === "string" || isPos((a as { to?: unknown }).to))
       )
       .slice(0, 6)
-      .map((a) => {
-        const to = a.to as { x: number; y: number };
-        return {
-          from: a.from as string,
-          to: { x: clampCoord(to.x, 50), y: clampCoord(to.y, 50) },
-        };
-      });
+      .map((a) => ({
+        from: a.from as string,
+        to: resolveZoneOrPos(a.to, defaultPos),
+      }));
 
     return {
       note: typeof stepObj.note === "string" ? stepObj.note : `${stepIdx + 1}단계`,
