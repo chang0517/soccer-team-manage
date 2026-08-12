@@ -1,35 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TacticsBoard from "@/components/TacticsBoard";
 import { useSession } from "@/components/useSession";
-import type { TacticsScene } from "@/lib/tactics";
+import type { TacticsScene } from "@/lib/types";
 
 const PLACEHOLDER =
   "예: 오른쪽 풀백이 오버래핑하면서 크로스를 올리고, 스트라이커가 니어포스트로 침투해서 헤더로 마무리";
 
+const JOB_ID_KEY = "tactics-job-id";
+const POLL_INTERVAL_MS = 2500;
+const POLL_GIVE_UP_MS = 3 * 60 * 1000;
+
+// 새로고침하거나 앱을 다시 열었을 때도 이전에 만들던 작업이 있으면 이어서
+// 확인한다 — 생성은 화면과 별개로 서버에서 계속 진행 중이었을 수 있다.
+// 렌더 중(초기 state)에 읽어서, 이펙트에서 setState하는 걸 피한다.
+function readSavedJobId(): number | null {
+  if (typeof window === "undefined") return null;
+  const saved = localStorage.getItem(JOB_ID_KEY);
+  return saved ? Number(saved) : null;
+}
+
 export default function TacticsPage() {
   const { user } = useSession();
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [jobId, setJobId] = useState<number | null>(readSavedJobId);
+  const [status, setStatus] = useState<"idle" | "pending" | "done" | "error">(() =>
+    readSavedJobId() != null ? "pending" : "idle"
+  );
   const [error, setError] = useState<string | null>(null);
   const [scene, setScene] = useState<TacticsScene | null>(null);
+  const pollStartRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (jobId == null || status !== "pending") return;
+    pollStartRef.current = Date.now();
+
+    const timer = setInterval(async () => {
+      if (Date.now() - pollStartRef.current > POLL_GIVE_UP_MS) {
+        clearInterval(timer);
+        setStatus("error");
+        setError(
+          "생성이 너무 오래 걸리네요. 서버에서는 계속 진행 중일 수 있으니, 잠시 후 이 페이지를 다시 열어보세요."
+        );
+        return;
+      }
+      try {
+        const res = await fetch(`/api/tactics/${jobId}`);
+        if (!res.ok) return; // 일시적 오류는 다음 폴링에서 재시도
+        const data = await res.json();
+        if (data.status === "done") {
+          clearInterval(timer);
+          localStorage.removeItem(JOB_ID_KEY);
+          setScene(data.result);
+          setStatus("done");
+        } else if (data.status === "error") {
+          clearInterval(timer);
+          localStorage.removeItem(JOB_ID_KEY);
+          setError(data.error || "생성에 실패했어요.");
+          setStatus("error");
+        }
+      } catch {
+        // 네트워크 순간 끊김은 무시하고 다음 폴링에서 재시도한다.
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [jobId, status]);
 
   const generate = async () => {
-    if (!description.trim() || loading) return;
-    setLoading(true);
+    if (!description.trim() || status === "pending") return;
     setError(null);
-    // 최대 1분 가까이 걸릴 수 있는데, 그 사이 화면이 꺼지거나 백그라운드로
-    // 넘어가면 iOS Safari가 요청을 끊어버려 "Load failed"로 실패한다.
-    // 화면 잠금만이라도 막아보려는 최선 노력(지원 안 하면 조용히 무시).
-    let wakeLock: { release: () => Promise<void> } | null = null;
-    try {
-      wakeLock = await (
-        navigator as { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } }
-      ).wakeLock?.request("screen") ?? null;
-    } catch {
-      // 지원 안 하거나 거부돼도 생성 자체는 계속 진행한다.
-    }
+    setScene(null);
+    setStatus("pending");
     try {
       const res = await fetch("/api/tactics", {
         method: "POST",
@@ -38,19 +81,12 @@ export default function TacticsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "생성에 실패했어요.");
-      setScene(data);
+      localStorage.setItem(JOB_ID_KEY, String(data.jobId));
+      pollStartRef.current = Date.now();
+      setJobId(data.jobId);
     } catch (e) {
-      const isNetworkError = e instanceof TypeError;
-      setError(
-        isNetworkError
-          ? "연결이 끊겼어요. 화면이 꺼지거나 다른 앱으로 전환하면 요청이 끊길 수 있어요 — 화면을 켜둔 채로 다시 시도해 주세요."
-          : e instanceof Error
-            ? e.message
-            : "생성에 실패했어요."
-      );
-    } finally {
-      setLoading(false);
-      wakeLock?.release().catch(() => {});
+      setStatus("error");
+      setError(e instanceof Error ? e.message : "생성에 실패했어요.");
     }
   };
 
@@ -60,8 +96,8 @@ export default function TacticsPage() {
       <p className="mb-4 text-sm text-zinc-500">
         상황을 글로 설명하면 핵심 인물 몇 명과 움직임 화살표로 전술판 애니메이션을 만들어줘요.
         팀 맥미니에서 도는 로컬 AI가 만드는 거라 결과가 완벽하지 않을 수 있고, 최대
-        1분 가까이 걸릴 수 있어요. 만드는 동안 화면이 꺼지거나 다른 앱으로 넘어가면
-        요청이 끊길 수 있으니 화면을 켜둔 채 기다려 주세요.
+        1~2분 걸릴 수 있어요. 생성 중엔 앱을 나가거나 화면을 꺼도 서버에서 계속
+        진행되고, 다시 열면 이어서 확인해요.
       </p>
 
       {!user && (
@@ -75,14 +111,15 @@ export default function TacticsPage() {
         onChange={(e) => setDescription(e.target.value)}
         placeholder={PLACEHOLDER}
         rows={4}
-        className="w-full rounded-xl border border-zinc-200 p-3 text-sm"
+        disabled={status === "pending"}
+        className="w-full rounded-xl border border-zinc-200 p-3 text-sm disabled:opacity-60"
       />
       <button
         onClick={generate}
-        disabled={!user || loading || !description.trim()}
+        disabled={!user || status === "pending" || !description.trim()}
         className="mt-2 w-full rounded-xl bg-blue-700 py-2.5 text-sm font-bold text-white disabled:opacity-40"
       >
-        {loading ? "만드는 중… (최대 1분 걸릴 수 있어요)" : "전술 만들기"}
+        {status === "pending" ? "만드는 중… (최대 1~2분 걸릴 수 있어요)" : "전술 만들기"}
       </button>
 
       {error && (

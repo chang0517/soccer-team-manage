@@ -16,6 +16,9 @@ import type {
   PosGroup,
   RecordRow,
   SquadData,
+  TacticsJobRow,
+  TacticsJobStatus,
+  TacticsScene,
   UserRole,
   UserStatus,
   VerificationPurpose,
@@ -179,6 +182,15 @@ async function init() {
       attempts INTEGER NOT NULL DEFAULT 0,
       consumed BOOLEAN NOT NULL DEFAULT false,
       expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS tactics_jobs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      result JSONB,
+      error TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
@@ -703,6 +715,60 @@ export async function incrementPhoneVerificationAttempts(id: number) {
 export async function consumePhoneVerification(id: number) {
   const pool = await ready();
   await pool.query("UPDATE phone_verifications SET consumed=true WHERE id=$1", [id]);
+}
+
+// ---------- tactics jobs (전술 시뮬레이터 생성 작업) ----------
+function toTacticsJob(r: {
+  id: number;
+  user_id: number;
+  description: string;
+  status: TacticsJobStatus;
+  result: TacticsScene | null;
+  error: string | null;
+  created_at: string;
+}): TacticsJobRow {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    description: r.description,
+    status: r.status,
+    result: r.result,
+    error: r.error,
+    createdAt: r.created_at,
+  };
+}
+
+export async function createTacticsJob(
+  userId: number,
+  description: string
+): Promise<TacticsJobRow> {
+  const pool = await ready();
+  // 오래된 작업이 계속 쌓이지 않게, 새 작업을 만들 때마다 하루 지난 것들을 지운다.
+  await pool.query("DELETE FROM tactics_jobs WHERE created_at < now() - interval '1 day'");
+  const { rows } = await pool.query(
+    "INSERT INTO tactics_jobs (user_id, description, status) VALUES ($1, $2, 'pending') RETURNING *",
+    [userId, description]
+  );
+  return toTacticsJob(rows[0]);
+}
+
+export async function getTacticsJob(id: number): Promise<TacticsJobRow | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM tactics_jobs WHERE id=$1", [id]);
+  return rows[0] ? toTacticsJob(rows[0]) : null;
+}
+
+export async function completeTacticsJob(id: number, result: TacticsScene) {
+  const pool = await ready();
+  await pool.query("UPDATE tactics_jobs SET status='done', result=$1 WHERE id=$2", [
+    JSON.stringify(result),
+    id,
+  ]);
+}
+
+export async function failTacticsJob(id: number, error: string) {
+  const pool = await ready();
+  await pool.query("UPDATE tactics_jobs SET status='error', error=$1 WHERE id=$2", [error, id]);
 }
 
 // ---------- comments ----------

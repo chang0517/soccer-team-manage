@@ -1,28 +1,5 @@
 import { callOllamaGateway, extractJsonObject } from "./llm";
-
-export interface TacticsPlayer {
-  id: string;
-  team: "A" | "B";
-  label: string;
-}
-
-export interface TacticsArrow {
-  from: string;
-  to: { x: number; y: number };
-}
-
-export interface TacticsStep {
-  note: string;
-  positions: Record<string, { x: number; y: number }>;
-  arrows: TacticsArrow[];
-}
-
-export interface TacticsScene {
-  title: string;
-  players: TacticsPlayer[];
-  hasBall: boolean;
-  steps: TacticsStep[];
-}
+import type { TacticsArrow, TacticsPlayer, TacticsScene, TacticsStep } from "./types";
 
 const MAX_PLAYERS = 8;
 const MAX_STEPS = 8;
@@ -178,9 +155,10 @@ export async function generateTacticsScene(description: string): Promise<Tactics
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: description },
     ],
-    // 경기 기록 파싱보다 훨씬 큰 JSON을 만들어야 해서 시간이 더 걸린다.
-    // 라우트의 maxDuration(60s)보다는 짧게 잡아 응답 조립 여유를 남긴다.
-    55000
+    // 이 생성은 요청-응답을 붙잡지 않고 백그라운드 작업(job)으로 도니까
+    // 경기 기록 파싱보다 훨씬 넉넉하게 잡아도 된다 — 라우트 maxDuration(120s)
+    // 보다 짧게 잡아 작업 상태 기록 여유를 남긴다.
+    110000
   );
   return sanitizeScene(extractJsonObject(content));
 }

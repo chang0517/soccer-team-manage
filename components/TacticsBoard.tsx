@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { TacticsScene } from "@/lib/tactics";
+import type { TacticsScene } from "@/lib/types";
 
 const STEP_DURATION_MS = 1800;
 

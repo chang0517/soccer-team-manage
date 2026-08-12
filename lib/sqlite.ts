@@ -18,6 +18,9 @@ import type {
   PosGroup,
   RecordRow,
   SquadData,
+  TacticsJobRow,
+  TacticsJobStatus,
+  TacticsScene,
   UserRole,
   UserStatus,
   VerificationPurpose,
@@ -163,6 +166,15 @@ function createDb(): Database.Database {
       attempts INTEGER NOT NULL DEFAULT 0,
       consumed INTEGER NOT NULL DEFAULT 0,
       expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS tactics_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      result TEXT,
+      error TEXT,
       created_at TEXT NOT NULL
     );
   `);
@@ -699,6 +711,64 @@ export function incrementPhoneVerificationAttempts(id: number) {
 
 export function consumePhoneVerification(id: number) {
   getDb().prepare("UPDATE phone_verifications SET consumed=1 WHERE id=?").run(id);
+}
+
+// ---------- tactics jobs (전술 시뮬레이터 생성 작업) ----------
+type TacticsJobDbRow = {
+  id: number;
+  user_id: number;
+  description: string;
+  status: TacticsJobStatus;
+  result: string | null;
+  error: string | null;
+  created_at: string;
+};
+
+function toTacticsJob(r: TacticsJobDbRow): TacticsJobRow {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    description: r.description,
+    status: r.status,
+    result: r.result ? (JSON.parse(r.result) as TacticsScene) : null,
+    error: r.error,
+    createdAt: r.created_at,
+  };
+}
+
+export function createTacticsJob(userId: number, description: string): TacticsJobRow {
+  const db = getDb();
+  // 오래된 작업이 계속 쌓이지 않게, 새 작업을 만들 때마다 하루 지난 것들을 지운다.
+  db.prepare("DELETE FROM tactics_jobs WHERE created_at < ?").run(
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  );
+  const createdAt = new Date().toISOString();
+  const r = db
+    .prepare(
+      "INSERT INTO tactics_jobs (user_id, description, status, created_at) VALUES (?, ?, 'pending', ?)"
+    )
+    .run(userId, description, createdAt);
+  const row = db
+    .prepare("SELECT * FROM tactics_jobs WHERE id=?")
+    .get(Number(r.lastInsertRowid)) as TacticsJobDbRow;
+  return toTacticsJob(row);
+}
+
+export function getTacticsJob(id: number): TacticsJobRow | null {
+  const row = getDb()
+    .prepare("SELECT * FROM tactics_jobs WHERE id=?")
+    .get(id) as TacticsJobDbRow | undefined;
+  return row ? toTacticsJob(row) : null;
+}
+
+export function completeTacticsJob(id: number, result: TacticsScene) {
+  getDb()
+    .prepare("UPDATE tactics_jobs SET status='done', result=? WHERE id=?")
+    .run(JSON.stringify(result), id);
+}
+
+export function failTacticsJob(id: number, error: string) {
+  getDb().prepare("UPDATE tactics_jobs SET status='error', error=? WHERE id=?").run(error, id);
 }
 
 // ---------- comments ----------

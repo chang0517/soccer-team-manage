@@ -265,3 +265,43 @@ export interface PollDetail extends Poll {
   voterCount: number;
   myOptionIds: number[];
 }
+
+// 전술 시뮬레이터 — 텍스트로 설명한 상황을 맥미니 로컬 LLM이 전술판
+// 애니메이션 장면(TacticsScene)으로 만든다. 생성이 오래 걸릴 수 있어
+// (최대 1~2분) 요청-응답 한 번에 묶지 않고 작업(job)을 만들어두고
+// 클라이언트가 폴링해서 결과를 가져가는 방식을 쓴다.
+export interface TacticsPlayer {
+  id: string;
+  team: "A" | "B";
+  label: string;
+}
+
+export interface TacticsArrow {
+  from: string;
+  to: { x: number; y: number };
+}
+
+export interface TacticsStep {
+  note: string;
+  positions: Record<string, { x: number; y: number }>;
+  arrows: TacticsArrow[];
+}
+
+export interface TacticsScene {
+  title: string;
+  players: TacticsPlayer[];
+  hasBall: boolean;
+  steps: TacticsStep[];
+}
+
+export type TacticsJobStatus = "pending" | "done" | "error";
+
+export interface TacticsJobRow {
+  id: number;
+  userId: number;
+  description: string;
+  status: TacticsJobStatus;
+  result: TacticsScene | null;
+  error: string | null;
+  createdAt: string;
+}

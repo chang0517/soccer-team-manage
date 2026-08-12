@@ -14,6 +14,8 @@ import type {
   PollOption,
   PollVoteRow,
   RecordRow,
+  TacticsJobRow,
+  TacticsScene,
   UserRole,
   UserStatus,
   VerificationPurpose,
@@ -173,6 +175,26 @@ export async function consumePhoneVerification(id: number) {
   return usePg
     ? pg.consumePhoneVerification(id)
     : sqlite.consumePhoneVerification(id);
+}
+
+export async function createTacticsJob(
+  userId: number,
+  description: string
+): Promise<TacticsJobRow> {
+  return usePg
+    ? pg.createTacticsJob(userId, description)
+    : sqlite.createTacticsJob(userId, description);
+}
+export async function getTacticsJob(id: number): Promise<TacticsJobRow | null> {
+  return usePg ? pg.getTacticsJob(id) : sqlite.getTacticsJob(id);
+}
+export async function completeTacticsJob(id: number, result: TacticsScene) {
+  return usePg
+    ? pg.completeTacticsJob(id, result)
+    : sqlite.completeTacticsJob(id, result);
+}
+export async function failTacticsJob(id: number, error: string) {
+  return usePg ? pg.failTacticsJob(id, error) : sqlite.failTacticsJob(id, error);
 }
 
 export async function getComments(eventId: number): Promise<CommentRow[]> {
