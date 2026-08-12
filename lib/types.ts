@@ -276,9 +276,15 @@ export interface TacticsPlayer {
   label: string;
 }
 
+// "steal"은 상대에게서 공을 뺏는(인터셉트·태클) 동작 — 화면에서 패스와
+// 시각적으로 구분해서(빨간 실선 vs 노란 점선) "공을 뺏었다"는 걸 텍스트
+// note에만 의존하지 않고 그림으로도 바로 알아볼 수 있게 한다.
+export type TacticsArrowKind = "pass" | "steal";
+
 export interface TacticsArrow {
   from: string;
   to: { x: number; y: number };
+  kind: TacticsArrowKind;
 }
 
 export interface TacticsStep {

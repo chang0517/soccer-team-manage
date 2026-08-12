@@ -80,10 +80,21 @@ export default function TacticsBoard({ scene }: { scene: TacticsScene }) {
             >
               <path d="M0,0 L6,3 L0,6 Z" fill="#fde047" />
             </marker>
+            <marker
+              id="tactics-arrowhead-steal"
+              markerWidth="6"
+              markerHeight="6"
+              refX="4.5"
+              refY="3"
+              orient="auto"
+            >
+              <path d="M0,0 L6,3 L0,6 Z" fill="#f87171" />
+            </marker>
           </defs>
           {arrowStep.arrows.map((a, i) => {
             const from = arrowStep.positions[a.from];
             if (!from) return null;
+            const isSteal = a.kind === "steal";
             return (
               <line
                 key={i}
@@ -91,10 +102,10 @@ export default function TacticsBoard({ scene }: { scene: TacticsScene }) {
                 y1={from.y * 1.5}
                 x2={a.to.x}
                 y2={a.to.y * 1.5}
-                stroke="#fde047"
-                strokeWidth="1"
-                strokeDasharray="3 2"
-                markerEnd="url(#tactics-arrowhead)"
+                stroke={isSteal ? "#f87171" : "#fde047"}
+                strokeWidth={isSteal ? "1.4" : "1"}
+                strokeDasharray={isSteal ? undefined : "3 2"}
+                markerEnd={isSteal ? "url(#tactics-arrowhead-steal)" : "url(#tactics-arrowhead)"}
               />
             );
           })}
@@ -128,6 +139,9 @@ export default function TacticsBoard({ scene }: { scene: TacticsScene }) {
         )}
       </div>
 
+      {step.arrows.some((a) => a.kind === "steal") && (
+        <p className="mt-2 text-center text-[11px] font-bold text-red-500">⚡ 공 뺏음</p>
+      )}
       <p className="mt-2 min-h-8 text-center text-xs text-zinc-500">{step.note}</p>
 
       <div className="mt-2 flex items-center justify-center gap-3">

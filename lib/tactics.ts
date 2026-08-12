@@ -30,7 +30,7 @@ ${ZONE_LEGEND}
     {
       "note": "이 장면에서 무슨 일이 일어나는지 한 문장 설명",
       "positions": { "p1": "B3", "ball": "B3" },
-      "arrows": [ { "from": "p1", "to": "A2" } ]
+      "arrows": [ { "from": "p1", "to": "A2", "kind": "pass" } ]
     }
   ]
 }
@@ -82,6 +82,18 @@ ${ZONE_LEGEND}
   하고 ball은 넣지 마세요.
 - 설명이 모호해도, 축구 상식에 맞게 가장 가까운 구역으로 합리적으로
   추측해서 채우세요. null이나 빈 값은 쓰지 마세요.
+- 화살표(arrows)에는 항상 "kind"를 넣으세요: 패스나 슛이면 "pass",
+  상대 팀 선수에게서 공을 빼앗는(인터셉트·태클·볼 경합) 장면이면
+  "steal"로 표시하세요. 화면에서 "steal"은 패스와 다른 색으로 그려져서
+  단순 패스가 아니라 공을 뺏어온 순간이라는 게 바로 보입니다. 상대가
+  공을 잃는 상황이 설명에 있으면, 그 상대 선수도 team "B"로 players에
+  포함시키고 첫 step에서 공을 그 상대 선수와 같은 구역에 두세요. 그
+  다음 공을 뺏는 step에서는 다른 패스와 마찬가지로 "from"을 **공을
+  뺏기기 직전에 갖고 있던 상대(team "B") 선수 id**로, "to"를 공을
+  뺏은 직후 위치(우리 선수가 있는 구역)로, "kind"를 "steal"로 채우세요
+  (예: {"from":"o1","to":"C2","kind":"steal"} — "공이 상대 o1에게서
+  C2로 이동했다"는 뜻). 상대 team "B" 선수는 공을 뺏긴 뒤에는 그 자리에
+  그대로 둬도 됩니다 — 이후 계속 움직일 필요는 없습니다.
 
 예시 — 사용자가 이렇게 구역을 직접 지정해서 설명하면:
 "B3에 있는 오른쪽 윙백이 근처 B2의 미드필더에게 패스를 주고 그대로 앞쪽
@@ -104,10 +116,10 @@ A3 공간으로 전진 침투한다. 미드필더는 원터치로 A3의 윙백�
   "hasBall": true,
   "steps": [
     { "note": "시작 위치", "positions": {"p1":"B3","p2":"B2","p3":"A2","ball":"B3"}, "arrows": [] },
-    { "note": "윙백이 미드필더에게 패스", "positions": {"p1":"B3","p2":"B2","p3":"A2","ball":"B2"}, "arrows": [{"from":"p1","to":"B2"}] },
-    { "note": "미드필더가 A3 공간으로 리턴 패스, 윙백이 침투해 받는다", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A3"}, "arrows": [{"from":"p2","to":"A3"}] },
-    { "note": "윙백이 스트라이커에게 연결", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A2"}, "arrows": [{"from":"p1","to":"A2"}] },
-    { "note": "스트라이커가 슛으로 마무리", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"GC"}, "arrows": [{"from":"p3","to":"GC"}] }
+    { "note": "윙백이 미드필더에게 패스", "positions": {"p1":"B3","p2":"B2","p3":"A2","ball":"B2"}, "arrows": [{"from":"p1","to":"B2","kind":"pass"}] },
+    { "note": "미드필더가 A3 공간으로 리턴 패스, 윙백이 침투해 받는다", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A3"}, "arrows": [{"from":"p2","to":"A3","kind":"pass"}] },
+    { "note": "윙백이 스트라이커에게 연결", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A2"}, "arrows": [{"from":"p1","to":"A2","kind":"pass"}] },
+    { "note": "스트라이커가 슛으로 마무리", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"GC"}, "arrows": [{"from":"p3","to":"GC","kind":"pass"}] }
   ]
 }
 
@@ -119,7 +131,23 @@ A3 공간으로 전진 침투한다. 미드필더는 원터치로 A3의 윙백�
 찬 자리인 A2에 그대로 있고, 공만 골대 전용 구역인 "GC"(골대 안 중앙)로
 이동한 것에 주목하세요 — 공을 스트라이커와 같은 A2에 두면 그냥 "골문
 앞에 서 있는" 그림이 되어버려서, 실제로 골대 안으로 들어간 걸 보여주지
-못합니다.`;
+못합니다.
+
+"공을 뺏는다"가 들어간 예시 — "C2에서 수비형 미드필더가 상대 공격을
+끊어 공을 잡는다"라면, 상대 선수를 team "B"로 하나 추가하고 첫 step에서
+공을 그 상대 선수와 같은 구역에 둡니다. 그리고 뺏는 step의 화살표는
+kind를 "steal"로 표시합니다:
+
+{
+  "players": [
+    { "id": "p1", "team": "A", "label": "수비형 미드필더" },
+    { "id": "o1", "team": "B", "label": "상대 공격수" }
+  ],
+  "steps": [
+    { "note": "시작 위치", "positions": {"p1":"C1","o1":"C2","ball":"C2"}, "arrows": [] },
+    { "note": "수비형 미드필더가 공을 끊는다", "positions": {"p1":"C2","o1":"C2","ball":"C2"}, "arrows": [{"from":"o1","to":"C2","kind":"steal"}] }
+  ]
+}`;
 
 function clampCoord(v: unknown, fallback: number): number {
   const n = Number(v);
@@ -269,6 +297,7 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
       .map((a) => ({
         from: a.from as string,
         to: resolveZoneOrPos(a.to, defaultPos),
+        kind: a.kind === "steal" ? ("steal" as const) : ("pass" as const),
       }));
 
     return {
