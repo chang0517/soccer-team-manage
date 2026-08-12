@@ -30,6 +30,13 @@ JSON만 출력하세요.
   명시 안 됐으면 conceded만 0으로 채우고 scored는 null로 두세요.
   메모에 스코어 정보가 전혀 없으면 둘 다 null로 두세요.`;
 
+/** 마지막 항목 뒤에 쉼표를 남기고 바로 닫는 것처럼, 로컬 모델이 자주
+ * 저지르는 흔한 JSON 문법 실수를 표준 JSON.parse가 받아들이기 전에
+ * 고쳐본다. */
+function repairJson(text: string): string {
+  return text.replace(/,(\s*[}\]])/g, "$1"); // trailing comma
+}
+
 export function extractJsonObject(text: string): Record<string, unknown> {
   const cleaned = text.trim();
   const start = cleaned.indexOf("{");
@@ -37,7 +44,19 @@ export function extractJsonObject(text: string): Record<string, unknown> {
   if (start === -1 || end === -1 || end < start) {
     throw new Error("응답에서 JSON을 찾지 못했어요.");
   }
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
+  const candidate = cleaned.slice(start, end + 1);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch {
+    try {
+      parsed = JSON.parse(repairJson(candidate));
+    } catch (e2) {
+      throw new Error(
+        `응답이 올바른 JSON이 아니에요: ${e2 instanceof Error ? e2.message : String(e2)}`
+      );
+    }
+  }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("응답이 올바른 JSON 객체가 아니에요.");
   }
