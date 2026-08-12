@@ -1,5 +1,5 @@
 import { callOllamaGateway, extractJsonObject, looksDegenerate } from "./llm";
-import { DEFAULT_ZONE, PITCH_ZONES, ZONE_LEGEND } from "./tacticsZones";
+import { DEFAULT_ZONE, GOAL_ZONE_LEGEND, PITCH_ZONES, ZONE_LEGEND } from "./tacticsZones";
 import type { TacticsArrow, TacticsPlayer, TacticsScene, TacticsStep } from "./types";
 
 const MAX_PLAYERS = 8;
@@ -66,10 +66,13 @@ ${ZONE_LEGEND}
   "공 도착"은 항상 같은 step에서 동시에 완성되어야 합니다.
 - steps 개수는 "준비 상태 1개 + 사용자가 설명한 패스/슛 동작 수"만큼
   정하세요(예: 동작이 4번이면 step은 5개, 최대 10개).
-- 골을 넣는 마지막 step에서는 슛을 쏘는 선수와 공 모두 "A1"/"A2"/"A3"
-  (상대 골문 앞) 중 하나에 있어야 하고, 가능하면 그 step에도 화살표를
-  하나 넣어서(슛을 쏜 선수 → 골이 들어가는 구역) 공이 골대로 들어가는
-  움직임을 보여주세요.
+- 골을 넣는 마지막 step에서는 **슛을 쏘는 선수**는 "A1"/"A2"/"A3"(상대
+  골문 앞) 중 슛을 차는 위치에 그대로 두되, **공은 선수와 같은 구역에
+  두지 말고** 실제로 골대 그물 안으로 들어간 것처럼 아래 골대 전용 구역
+  중 하나로 옮기세요: ${GOAL_ZONE_LEGEND}. 이 구역들은 오직 골이 들어가는
+  이 마지막 step의 공 위치로만 쓰고, 선수 위치나 다른 step에는 절대 쓰지
+  마세요. 그 step에 화살표도 하나 넣어서(슛을 쏜 선수 → 공이 도착한 골대
+  구역) 공이 슛 방향대로 골대 안으로 빨려 들어가는 움직임을 보여주세요.
 - 각 step의 positions에는 등장하는 모든 players와(공을 쓰는 상황이면)
   "ball"의 그 시점 구역을 전부 포함하세요 — 이전 step과 구역이 같아도
   생략하지 말고 그대로 다시 적으세요. 스키마에 없는 필드나 부가 설명
@@ -104,7 +107,7 @@ A3 공간으로 전진 침투한다. 미드필더는 원터치로 A3의 윙백�
     { "note": "윙백이 미드필더에게 패스", "positions": {"p1":"B3","p2":"B2","p3":"A2","ball":"B2"}, "arrows": [{"from":"p1","to":"B2"}] },
     { "note": "미드필더가 A3 공간으로 리턴 패스, 윙백이 침투해 받는다", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A3"}, "arrows": [{"from":"p2","to":"A3"}] },
     { "note": "윙백이 스트라이커에게 연결", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A2"}, "arrows": [{"from":"p1","to":"A2"}] },
-    { "note": "스트라이커가 슛으로 마무리", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"A1"}, "arrows": [{"from":"p3","to":"A1"}] }
+    { "note": "스트라이커가 슛으로 마무리", "positions": {"p1":"A3","p2":"B2","p3":"A2","ball":"GC"}, "arrows": [{"from":"p3","to":"GC"}] }
   ]
 }
 
@@ -112,7 +115,11 @@ A3 공간으로 전진 침투한다. 미드필더는 원터치로 A3의 윙백�
 — 그 다음 step에서야 공이 B2로 이동하며 화살표를 따라가는 것처럼
 보입니다. 두 번째 동작(리턴 패스)에서는 공만 A3로 옮긴 게 아니라
 윙백(p1)의 위치도 B3에서 A3로 함께 바뀐 것에 주목하세요 — 선수를 이전
-자리에 그대로 두면 안 됩니다.`;
+자리에 그대로 두면 안 됩니다. 마지막 step에서는 스트라이커(p3)는 슛을
+찬 자리인 A2에 그대로 있고, 공만 골대 전용 구역인 "GC"(골대 안 중앙)로
+이동한 것에 주목하세요 — 공을 스트라이커와 같은 A2에 두면 그냥 "골문
+앞에 서 있는" 그림이 되어버려서, 실제로 골대 안으로 들어간 걸 보여주지
+못합니다.`;
 
 function clampCoord(v: unknown, fallback: number): number {
   const n = Number(v);

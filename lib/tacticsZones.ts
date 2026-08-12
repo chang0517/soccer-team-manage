@@ -8,7 +8,7 @@ export interface TacticsZone {
 }
 
 // 세로 5단(A~E) × 가로 3열(1~3). 공격 방향은 A쪽(상대 골문), E가 우리 골문.
-export const PITCH_ZONES: Record<string, TacticsZone> = {
+export const FIELD_ZONES: Record<string, TacticsZone> = {
   A1: { x: 20, y: 6, label: "상대 골문 앞 왼쪽" },
   A2: { x: 50, y: 6, label: "상대 골문 앞 중앙" },
   A3: { x: 80, y: 6, label: "상대 골문 앞 오른쪽" },
@@ -26,12 +26,36 @@ export const PITCH_ZONES: Record<string, TacticsZone> = {
   E3: { x: 80, y: 94, label: "우리 골문 앞 오른쪽" },
 };
 
+// 골이 들어가는 마지막 step 전용 구역 — A1~A3(골문 "앞")과는 별개로, 실제
+// 골대 그물 안쪽 지점을 나타낸다. 슈터는 A1~A3에 남아있고 공만 이 구역
+// 으로 이동해야 "슛이 골대 안으로 빨려 들어가는" 것처럼 보인다(공을
+// 슈터와 같은 A열 구역에 두면 그냥 "골문 앞에 서 있는" 그림이 되어버림).
+export const GOAL_ZONES: Record<string, TacticsZone> = {
+  GL: { x: 43, y: 3, label: "골대 안 왼쪽" },
+  GC: { x: 50, y: 3, label: "골대 안 중앙" },
+  GR: { x: 57, y: 3, label: "골대 안 오른쪽" },
+};
+
+// zone-lookup(resolveZoneOrPos)이 코드 하나로 필드 구역과 골대 구역을
+// 모두 찾을 수 있도록 합친 것. 사용자 안내 그리드(ZONE_ROWS×ZONE_COLS)는
+// FIELD_ZONES만 순회하므로 GOAL_ZONES는 화면에는 노출되지 않는다(의도된
+// 것 — 사용자가 직접 지정하는 위치가 아니라 모델이 마지막 슛 step에서만
+// 쓰는 값).
+export const PITCH_ZONES: Record<string, TacticsZone> = {
+  ...FIELD_ZONES,
+  ...GOAL_ZONES,
+};
+
 export const DEFAULT_ZONE = "C2";
 
 // 화면에 표시할 때 쓰는 행(위→아래)·열(왼→오른) 순서.
 export const ZONE_ROWS = ["A", "B", "C", "D", "E"] as const;
 export const ZONE_COLS = ["1", "2", "3"] as const;
 
-export const ZONE_LEGEND = Object.entries(PITCH_ZONES)
+export const ZONE_LEGEND = Object.entries(FIELD_ZONES)
+  .map(([code, z]) => `${code}=${z.label}`)
+  .join(", ");
+
+export const GOAL_ZONE_LEGEND = Object.entries(GOAL_ZONES)
   .map(([code, z]) => `${code}=${z.label}`)
   .join(", ");
