@@ -182,6 +182,25 @@ function separateOverlaps(positions: Record<string, { x: number; y: number }>) {
 }
 
 /**
+ * 로컬 모델이 가끔 선수 id를 오타로 쓴다(예: "p1" 대신 "t1") — 실제로
+ * 이 오타 때문에 그 선수만 이전 step 위치에 멈춰 있고 공만 이동한 것처럼
+ * 보이는 버그가 있었다(정상 id가 없으니 lastKnownPos로 그냥 fallback돼서).
+ * 그 step에서 knownIds 중 정확히 하나가 빠져 있고 knownIds에 없는 낯선
+ * 키가 정확히 하나 있으면(1:1로 명확한 경우만) 그 낯선 키를 빠진 id의
+ * 오타로 간주해서 값을 옮겨준다. 빠진 id가 여러 개거나 낯선 키가 여러
+ * 개면 어느 게 어느 것의 오타인지 알 수 없으니 손대지 않는다.
+ */
+function recoverTypoKeys(
+  rawPositions: Record<string, unknown>,
+  knownIds: Set<string>
+): Record<string, unknown> {
+  const missing = [...knownIds].filter((id) => !(id in rawPositions));
+  const stray = Object.keys(rawPositions).filter((key) => !knownIds.has(key));
+  if (missing.length !== 1 || stray.length !== 1) return rawPositions;
+  return { ...rawPositions, [missing[0]]: rawPositions[stray[0]] };
+}
+
+/**
  * 게이트웨이(로컬 LLM)가 돌려준 값을 신뢰하지 않고 스키마에 맞게 정리한다.
  * 필드가 비었거나 형식이 어긋나면 잘라내거나 합리적인 값으로 채운다 —
  * 애니메이션 컴포넌트가 항상 완전한 데이터를 받도록 보장한다.
@@ -212,10 +231,12 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
   const lastKnownPos = new Map<string, { x: number; y: number }>();
   const steps: TacticsStep[] = rawSteps.slice(0, MAX_STEPS).map((s, stepIdx) => {
     const stepObj = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-    const rawPositions =
+    const rawPositions = recoverTypoKeys(
       stepObj.positions && typeof stepObj.positions === "object"
         ? (stepObj.positions as Record<string, unknown>)
-        : {};
+        : {},
+      knownIds
+    );
 
     const positions: Record<string, { x: number; y: number }> = {};
     for (const id of knownIds) {
