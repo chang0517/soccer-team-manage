@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import TacticsBoard from "@/components/TacticsBoard";
 import { useSession } from "@/components/useSession";
+import { PITCH_ZONES, ZONE_COLS, ZONE_ROWS } from "@/lib/tacticsZones";
 import type { TacticsScene } from "@/lib/types";
 
 const PLACEHOLDER =
-  "예: 오른쪽 풀백이 오버래핑하면서 크로스를 올리고, 스트라이커가 니어포스트로 침투해서 헤더로 마무리";
+  "예: B3에 있는 오른쪽 윙백이 C2의 미드필더에게 패스하고 A2로 침투해서 스트라이커에게 연결, 헤더로 마무리";
 
 const JOB_ID_KEY = "tactics-job-id";
 const POLL_INTERVAL_MS = 2500;
@@ -152,10 +153,34 @@ export default function TacticsPage() {
       <h1 className="mb-1 text-lg font-bold">전술 시뮬레이터</h1>
       <p className="mb-4 text-sm text-zinc-500">
         상황을 글로 설명하면 핵심 인물 몇 명과 움직임 화살표로 전술판 애니메이션을 만들어줘요.
-        팀 맥미니에서 도는 로컬 AI가 만드는 거라 결과가 완벽하지 않을 수 있고, 모델
-        크기에 따라 몇 분씩 걸릴 수 있어요. 생성 중엔 앱을 나가거나 화면을 꺼도
-        서버에서 계속 진행되고, 다시 열면 이어서 확인해요.
+        경기장은 아래처럼 15개 구역(A1~E3)으로 나뉘어 있는데, 설명에 그 구역 코드를
+        직접 넣으면(예: &quot;B3에서 C2로 패스&quot;) 더 정확하게 반영돼요. 팀 맥미니에서
+        도는 로컬 AI가 만드는 거라 결과가 완벽하지 않을 수 있고, 모델 크기에 따라 몇
+        분씩 걸릴 수 있어요. 생성 중엔 앱을 나가거나 화면을 꺼도 서버에서 계속
+        진행되고, 다시 열면 이어서 확인해요.
       </p>
+
+      <details open className="mb-4 rounded-2xl border border-zinc-200 bg-white p-3">
+        <summary className="cursor-pointer text-sm font-bold text-zinc-700">
+          구역 안내 — A열이 상대 골문 쪽, E열이 우리 골문 쪽
+        </summary>
+        <div className="mt-3 rounded-xl bg-blue-700 p-2">
+          <div className="grid grid-cols-3 gap-1">
+            {ZONE_ROWS.flatMap((row) =>
+              ZONE_COLS.map((col) => {
+                const code = `${row}${col}`;
+                const zone = PITCH_ZONES[code];
+                return (
+                  <div key={code} className="rounded-lg bg-blue-600/70 py-1.5 text-center">
+                    <p className="text-xs font-bold text-white">{code}</p>
+                    <p className="text-[10px] leading-tight text-blue-100">{zone.label}</p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </details>
 
       {!user && (
         <p className="mb-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">

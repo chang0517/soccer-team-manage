@@ -1,40 +1,14 @@
 import { callOllamaGateway, extractJsonObject } from "./llm";
+import { DEFAULT_ZONE, PITCH_ZONES, ZONE_LEGEND } from "./tacticsZones";
 import type { TacticsArrow, TacticsPlayer, TacticsScene, TacticsStep } from "./types";
 
 const MAX_PLAYERS = 8;
 const MAX_STEPS = 10;
 
-// 좌표계는 스쿼드 화면(lib/squad.ts의 FORMATION_SLOTS)과 동일: 세로로 긴
-// 축구장을 위에서 내려다본 기준으로 x 0~100(왼쪽~오른쪽), y 0~100
-// (상대 골대 쪽 0 ~ 우리 골대 쪽 100, 즉 공격은 y가 작아지는 방향).
-//
-// 로컬 모델이 연속적인 숫자 좌표를 직접 계산하게 하면 값이 겹치거나
-// 튀는 경우가 잦았다(분류가 아니라 회귀 문제라 훨씬 어려움). 그래서
-// 경기장을 세로 5단(A~E) × 가로 3열(1~3), 15개 구역으로 미리 나눠두고
-// 모델은 숫자 대신 이 구역 코드만 고르게 한다 — "적당한 숫자를 계산"이
-// 아니라 "목록에서 하나 고르기"로 바꿔서 훨씬 안정적으로 만들려는 목적.
-const PITCH_ZONES: Record<string, { x: number; y: number; label: string }> = {
-  A1: { x: 20, y: 6, label: "상대 골문 앞 왼쪽" },
-  A2: { x: 50, y: 6, label: "상대 골문 앞 중앙" },
-  A3: { x: 80, y: 6, label: "상대 골문 앞 오른쪽" },
-  B1: { x: 20, y: 27, label: "상대 진영 왼쪽" },
-  B2: { x: 50, y: 27, label: "상대 진영 중앙" },
-  B3: { x: 80, y: 27, label: "상대 진영 오른쪽" },
-  C1: { x: 20, y: 50, label: "하프라인 왼쪽" },
-  C2: { x: 50, y: 50, label: "하프라인 중앙" },
-  C3: { x: 80, y: 50, label: "하프라인 오른쪽" },
-  D1: { x: 20, y: 73, label: "우리 진영 왼쪽" },
-  D2: { x: 50, y: 73, label: "우리 진영 중앙" },
-  D3: { x: 80, y: 73, label: "우리 진영 오른쪽" },
-  E1: { x: 20, y: 94, label: "우리 골문 앞 왼쪽" },
-  E2: { x: 50, y: 94, label: "우리 골문 앞 중앙" },
-  E3: { x: 80, y: 94, label: "우리 골문 앞 오른쪽" },
-};
-const DEFAULT_ZONE = "C2";
-
-const ZONE_LEGEND = Object.entries(PITCH_ZONES)
-  .map(([code, z]) => `${code}=${z.label}`)
-  .join(", ");
+// 좌표계·구역 정의는 lib/tacticsZones.ts를 참고(화면 안내와 공유). 로컬
+// 모델이 연속적인 숫자 좌표를 직접 계산하게 하면 값이 겹치거나 튀는 경우가
+// 잦았다(분류가 아니라 회귀 문제라 훨씬 어려움) — 그래서 숫자 대신 미리
+// 정해둔 15개 구역 코드만 고르게 한다.
 
 const SYSTEM_PROMPT = `당신은 조기축구 팀의 전술 상황을 애니메이션으로 보여주기 위한
 장면 데이터를 만드는 도우미입니다. 사용자가 텍스트로 설명하는 축구 상황을
