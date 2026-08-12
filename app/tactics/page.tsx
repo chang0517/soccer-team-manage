@@ -10,7 +10,9 @@ const PLACEHOLDER =
 
 const JOB_ID_KEY = "tactics-job-id";
 const POLL_INTERVAL_MS = 2500;
-const POLL_GIVE_UP_MS = 3 * 60 * 1000;
+// 서버 쪽 백그라운드 생성 예산(최대 280초)보다 여유 있게 잡는다 — 그보다
+// 짧으면 서버가 아직 정상적으로 작업 중인데 클라이언트가 먼저 포기해버린다.
+const POLL_GIVE_UP_MS = 5 * 60 * 1000;
 
 // 새로고침하거나 앱을 다시 열었을 때도 이전에 만들던 작업이 있으면 이어서
 // 확인한다 — 생성은 화면과 별개로 서버에서 계속 진행 중이었을 수 있다.

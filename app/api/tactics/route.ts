@@ -9,7 +9,7 @@ import { generateTacticsScene } from "@/lib/tactics";
 // 으로 전환돼 클라이언트 연결이 끊겨도(이동통신망은 유휴 연결을 자주
 // 끊는다) 생성 자체는 계속되고, 클라이언트는 짧은 폴링 요청으로 결과를
 // 가져간다.
-export const maxDuration = 120;
+export const maxDuration = 280;
 
 export async function POST(request: Request) {
   const session = await getSessionUser();
