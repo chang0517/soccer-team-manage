@@ -37,6 +37,13 @@ function repairJson(text: string): string {
   return text.replace(/,(\s*[}\]])/g, "$1"); // trailing comma
 }
 
+/** 로컬 모델이 같은 짧은 토큰(단어)을 수백 번 반복하며 폭주하는 경우를
+ * 감지한다(예: "wall_wall_wall_..."). 이런 응답은 JSON 문법을 아무리
+ * 손봐도 고칠 수 없는 근본적으로 망가진 생성이라 별도로 잡아낸다. */
+export function looksDegenerate(text: string): boolean {
+  return /(.{2,20}?)\1{9,}/.test(text);
+}
+
 export function extractJsonObject(text: string): Record<string, unknown> {
   const cleaned = text.trim();
   const start = cleaned.indexOf("{");
@@ -88,7 +95,11 @@ export function getConfiguredModel(): string {
 
 export async function callOllamaGateway(
   messages: GatewayMessage[],
-  timeoutMs = 45000
+  timeoutMs = 45000,
+  // 로컬 모델이 같은 토큰을 반복하며 폭주할 때 응답 전체를 무한정 길게
+  // 만들지 않도록 상한을 둔다 — 이 스키마들이 실제로 필요로 하는 양보다
+  // 훨씬 넉넉하지만, 폭주 시 시간 예산을 통째로 잡아먹는 것은 막는다.
+  maxTokens = 4000
 ): Promise<string> {
   const gatewayUrl = process.env.OLLAMA_GATEWAY_URL;
   const secret = process.env.OLLAMA_GATEWAY_SECRET;
@@ -115,6 +126,7 @@ export async function callOllamaGateway(
       stream: false,
       messages,
       response_format: { type: "json_object" },
+      max_tokens: maxTokens,
     }),
   });
   if (!res.ok) {

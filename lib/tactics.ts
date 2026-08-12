@@ -1,4 +1,4 @@
-import { callOllamaGateway, extractJsonObject } from "./llm";
+import { callOllamaGateway, extractJsonObject, looksDegenerate } from "./llm";
 import { DEFAULT_ZONE, PITCH_ZONES, ZONE_LEGEND } from "./tacticsZones";
 import type { TacticsArrow, TacticsPlayer, TacticsScene, TacticsStep } from "./types";
 
@@ -235,30 +235,60 @@ export interface TacticsGenerationResult {
   raw: string;
 }
 
+// 시도 하나당 시간 예산 × 최대 시도 횟수가 라우트 maxDuration(Vercel Hobby
+// 플랜 상한인 300s)보다 여유 있게 낮아야 한다(작업 상태 기록 시간도 필요).
+const ATTEMPT_TIMEOUT_MS = 130000;
+const MAX_ATTEMPTS = 2;
+// 이 스키마(15개 구역 코드 기반)는 원래도 크지 않지만, 로컬 모델이 반복
+// 루프에 빠져 폭주하는 걸 막기 위해 넉넉하되 상한을 둔다.
+const MAX_RESPONSE_TOKENS = 2500;
+
 /**
  * raw 응답 텍스트를 함께 반환한다(성공 시), 실패해도 호출부가 raw를 볼 수
  * 있도록 에러 객체에 raw를 붙여서 던진다 — 결과물이 이상할 때 운영진이
  * 모델이 실제로 뭘 뱉었는지 디버그 화면에서 바로 확인할 수 있게 하기 위함.
+ *
+ * 로컬 모델은 가끔 같은 토큰을 반복하며 폭주하거나 JSON 문법을 깨뜨리는데,
+ * 재시도 한 번으로 회복되는 경우가 많아서 최대 2번까지 시도한다.
  */
 export async function generateTacticsScene(
   description: string
 ): Promise<TacticsGenerationResult> {
-  const raw = await callOllamaGateway(
-    [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: description },
-    ],
-    // 이 생성은 요청-응답을 붙잡지 않고 백그라운드 작업(job)으로 돈다.
-    // 라우트 maxDuration(Vercel Hobby 플랜 상한인 300s)보다 짧게 잡아
-    // 작업 상태 기록 여유를 남긴다.
-    280000
-  );
-  try {
-    const scene = sanitizeScene(extractJsonObject(raw));
-    return { scene, raw };
-  } catch (e) {
-    const err = e instanceof Error ? e : new Error(String(e));
-    (err as Error & { raw?: string }).raw = raw;
-    throw err;
+  let lastRaw = "";
+  let lastError = new Error("생성에 실패했어요.");
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let raw: string;
+    try {
+      raw = await callOllamaGateway(
+        [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: description },
+        ],
+        ATTEMPT_TIMEOUT_MS,
+        MAX_RESPONSE_TOKENS
+      );
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      continue;
+    }
+    lastRaw = raw;
+
+    if (looksDegenerate(raw)) {
+      lastError = new Error(
+        "모델이 같은 단어를 반복하며 응답이 깨졌어요(반복 루프)."
+      );
+      continue;
+    }
+
+    try {
+      const scene = sanitizeScene(extractJsonObject(raw));
+      return { scene, raw };
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
   }
+
+  (lastError as Error & { raw?: string }).raw = lastRaw;
+  throw lastError;
 }
