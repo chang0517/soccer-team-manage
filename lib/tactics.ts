@@ -124,15 +124,20 @@ function resolveZoneOrPos(
 }
 
 /**
- * 로컬 모델이 서로 다른 선수/공에 거의 같은 좌표를 주는 경우가 있어서
+ * 로컬 모델이 서로 다른 선수에게 거의 같은 좌표를 주는 경우가 있어서
  * (라벨이 겹쳐 보이고 애니메이션도 안 움직이는 것처럼 보임), 같은 step
  * 안에서 너무 가까운 좌표끼리는 원 모양으로 살짝 벌려서 항상 구분되게
  * 만든다. 같은 구역을 고른 선수가 여럿이면 자주 발생하므로 여전히 필요.
+ *
+ * "ball"은 일부러 대상에서 뺀다 — 공이 어떤 선수와 같은 구역이라는 건
+ * "그 선수가 공을 갖고 있다"는 뜻이라 그 선수 위치에 그대로 겹쳐 있어야
+ * 자연스럽다. 억지로 옆으로 밀어내면 패스 화살표가 시작점이랑 안 맞아
+ * 보인다.
  */
 function separateOverlaps(positions: Record<string, { x: number; y: number }>) {
   const OVERLAP_DIST = 3;
   const NUDGE_RADIUS = 4.5;
-  const ids = Object.keys(positions);
+  const ids = Object.keys(positions).filter((id) => id !== "ball");
   const visited = new Set<string>();
   for (const id of ids) {
     if (visited.has(id)) continue;
