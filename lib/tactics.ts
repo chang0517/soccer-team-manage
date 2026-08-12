@@ -239,9 +239,11 @@ export interface TacticsGenerationResult {
 // 플랜 상한인 300s)보다 여유 있게 낮아야 한다(작업 상태 기록 시간도 필요).
 const ATTEMPT_TIMEOUT_MS = 130000;
 const MAX_ATTEMPTS = 2;
-// 이 스키마(15개 구역 코드 기반)는 원래도 크지 않지만, 로컬 모델이 반복
-// 루프에 빠져 폭주하는 걸 막기 위해 넉넉하되 상한을 둔다.
-const MAX_RESPONSE_TOKENS = 2500;
+// 이 스키마(15개 구역 코드 기반)가 실제로 필요로 하는 JSON은 크지 않지만,
+// "생각하는" 모델은 답을 내기 전에 reasoning 토큰을 먼저 상당히 쓸 수
+// 있어서(2500으로는 부족해서 답변 전에 잘려버리는 걸 실제로 봤다) 넉넉히
+// 잡되, 반복 루프 폭주로 무한정 길어지는 것만 막을 정도의 상한을 둔다.
+const MAX_RESPONSE_TOKENS = 8000;
 
 /**
  * raw 응답 텍스트를 함께 반환한다(성공 시), 실패해도 호출부가 raw를 볼 수

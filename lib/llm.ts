@@ -133,8 +133,20 @@ export async function callOllamaGateway(
     throw new Error(`게이트웨이 응답 오류 (HTTP ${res.status})`);
   }
   const data = await res.json();
-  const content: string | undefined = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error("응답에서 내용을 찾지 못했어요.");
+  const message = data?.choices?.[0]?.message;
+  const content: string | undefined = message?.content;
+  if (!content) {
+    // "생각하는" 모델은 답을 내기 전에 reasoning 토큰을 먼저 쓰는데,
+    // max_tokens에 걸려 실제 답변을 못 내는 경우가 있다. 원인을 바로
+    // 알 수 있게 finish_reason과 reasoning 미리보기를 에러에 남긴다.
+    const finishReason = data?.choices?.[0]?.finish_reason;
+    const reasoning = message?.reasoning_content ?? message?.reasoning;
+    throw new Error(
+      `응답에서 내용을 찾지 못했어요. finish_reason=${finishReason ?? "?"} reasoning=${
+        typeof reasoning === "string" ? reasoning.slice(0, 300) : "(없음)"
+      }`
+    );
+  }
   return content;
 }
 
