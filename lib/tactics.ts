@@ -248,10 +248,10 @@ export async function generateTacticsScene(
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: description },
     ],
-    // 이 생성은 요청-응답을 붙잡지 않고 백그라운드 작업(job)으로 도니까
-    // 완성만 되면 오래 걸려도 괜찮다는 판단으로 아주 넉넉하게 잡는다.
-    // 라우트 maxDuration(800s)보다 짧게 잡아 작업 상태 기록 여유를 남긴다.
-    770000
+    // 이 생성은 요청-응답을 붙잡지 않고 백그라운드 작업(job)으로 돈다.
+    // 라우트 maxDuration(Vercel Hobby 플랜 상한인 300s)보다 짧게 잡아
+    // 작업 상태 기록 여유를 남긴다.
+    280000
   );
   try {
     const scene = sanitizeScene(extractJsonObject(raw));

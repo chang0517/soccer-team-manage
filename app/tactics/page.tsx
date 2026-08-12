@@ -11,18 +11,20 @@ const PLACEHOLDER =
 
 const JOB_ID_KEY = "tactics-job-id";
 const POLL_INTERVAL_MS = 2500;
-// 서버 쪽 백그라운드 생성 예산(최대 800초)보다 여유 있게 잡는다 — 그보다
-// 짧으면 서버가 아직 정상적으로 작업 중인데 클라이언트가 먼저 포기해버린다.
-const POLL_GIVE_UP_MS = 14 * 60 * 1000;
-const SERVER_BUDGET_SEC = 800;
+// Vercel Hobby 플랜의 Serverless Function 실행 시간 상한이 300초라
+// 서버 쪽 백그라운드 작업도 그 안에서 끝나거나 실패 처리된다. 클라이언트는
+// 그보다 살짝 여유 있게 잡아서, 서버가 아직 정상적으로 작업 중인데
+// 먼저 포기해버리는 일이 없게 한다.
+const SERVER_BUDGET_SEC = 300;
+const POLL_GIVE_UP_MS = (SERVER_BUDGET_SEC + 30) * 1000;
 
 // 토큰 스트리밍이 아니라서 정확한 진행률은 알 수 없다 — 경과 시간대별로
 // 지금 상황을 정직하게 설명해주는 문구만 보여준다.
 function progressHint(elapsedSec: number): string {
-  if (elapsedSec < 30) return "요청을 맥미니로 전달했어요.";
-  if (elapsedSec < 120) return "맥미니가 생성 중이에요.";
-  if (elapsedSec < 300) return "생각보다 오래 걸리고 있어요 — 모델이 크면 흔한 일이에요.";
-  return "많이 걸리고 있어요. 맥미니가 메모리 압박으로 느려졌을 수 있어요. 계속 기다리거나 취소 후 다시 시도해보세요.";
+  if (elapsedSec < 20) return "요청을 맥미니로 전달했어요.";
+  if (elapsedSec < 90) return "맥미니가 생성 중이에요.";
+  if (elapsedSec < 200) return "생각보다 오래 걸리고 있어요 — 모델이 크면 흔한 일이에요.";
+  return "제한 시간이 얼마 안 남았어요. 곧 완성되거나 실패 처리될 거예요.";
 }
 
 // 새로고침하거나 앱을 다시 열었을 때도 이전에 만들던 작업이 있으면 이어서
