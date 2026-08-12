@@ -216,6 +216,12 @@ function createDb(): Database.Database {
   if (pollCols.length > 0 && !pollCols.some((c) => c.name === "multi_select")) {
     db.exec("ALTER TABLE polls ADD COLUMN multi_select INTEGER NOT NULL DEFAULT 1");
   }
+  const tacticsJobCols = db.prepare("PRAGMA table_info(tactics_jobs)").all() as {
+    name: string;
+  }[];
+  if (tacticsJobCols.length > 0 && !tacticsJobCols.some((c) => c.name === "raw_response")) {
+    db.exec("ALTER TABLE tactics_jobs ADD COLUMN raw_response TEXT");
+  }
   seedIfEmpty(db);
   return db;
 }
@@ -721,6 +727,7 @@ type TacticsJobDbRow = {
   status: TacticsJobStatus;
   result: string | null;
   error: string | null;
+  raw_response: string | null;
   created_at: string;
 };
 
@@ -732,6 +739,7 @@ function toTacticsJob(r: TacticsJobDbRow): TacticsJobRow {
     status: r.status,
     result: r.result ? (JSON.parse(r.result) as TacticsScene) : null,
     error: r.error,
+    rawResponse: r.raw_response,
     createdAt: r.created_at,
   };
 }
@@ -761,14 +769,16 @@ export function getTacticsJob(id: number): TacticsJobRow | null {
   return row ? toTacticsJob(row) : null;
 }
 
-export function completeTacticsJob(id: number, result: TacticsScene) {
+export function completeTacticsJob(id: number, result: TacticsScene, rawResponse: string | null) {
   getDb()
-    .prepare("UPDATE tactics_jobs SET status='done', result=? WHERE id=?")
-    .run(JSON.stringify(result), id);
+    .prepare("UPDATE tactics_jobs SET status='done', result=?, raw_response=? WHERE id=?")
+    .run(JSON.stringify(result), rawResponse, id);
 }
 
-export function failTacticsJob(id: number, error: string) {
-  getDb().prepare("UPDATE tactics_jobs SET status='error', error=? WHERE id=?").run(error, id);
+export function failTacticsJob(id: number, error: string, rawResponse: string | null) {
+  getDb()
+    .prepare("UPDATE tactics_jobs SET status='error', error=?, raw_response=? WHERE id=?")
+    .run(error, rawResponse, id);
 }
 
 // ---------- comments ----------

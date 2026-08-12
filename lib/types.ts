@@ -303,5 +303,8 @@ export interface TacticsJobRow {
   status: TacticsJobStatus;
   result: TacticsScene | null;
   error: string | null;
+  // 로컬 모델이 실제로 뱉은 원문(성공/실패 관계없이 저장) — 결과물이
+  // 이상할 때 운영진이 무엇이 잘못됐는지 직접 들여다볼 수 있게 한다.
+  rawResponse: string | null;
   createdAt: string;
 }

@@ -32,6 +32,7 @@ export default function TacticsPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [scene, setScene] = useState<TacticsScene | null>(null);
+  const [rawResponse, setRawResponse] = useState<string | null>(null);
   const pollStartRef = useRef<number>(0);
 
   useEffect(() => {
@@ -55,11 +56,13 @@ export default function TacticsPage() {
           clearInterval(timer);
           localStorage.removeItem(JOB_ID_KEY);
           setScene(data.result);
+          setRawResponse(data.rawResponse ?? null);
           setStatus("done");
         } else if (data.status === "error") {
           clearInterval(timer);
           localStorage.removeItem(JOB_ID_KEY);
           setError(data.error || "생성에 실패했어요.");
+          setRawResponse(data.rawResponse ?? null);
           setStatus("error");
         }
       } catch {
@@ -74,6 +77,7 @@ export default function TacticsPage() {
     if (!description.trim() || status === "pending") return;
     setError(null);
     setScene(null);
+    setRawResponse(null);
     setStatus("pending");
     try {
       const res = await fetch("/api/tactics", {
@@ -132,6 +136,17 @@ export default function TacticsPage() {
         <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
           <TacticsBoard scene={scene} />
         </div>
+      )}
+
+      {rawResponse && (
+        <details className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs">
+          <summary className="cursor-pointer font-semibold text-zinc-500">
+            운영진 디버그: 모델 원본 응답
+          </summary>
+          <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all text-[11px] text-zinc-600">
+            {rawResponse}
+          </pre>
+        </details>
       )}
     </main>
   );

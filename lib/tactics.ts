@@ -223,8 +223,20 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
   };
 }
 
-export async function generateTacticsScene(description: string): Promise<TacticsScene> {
-  const content = await callOllamaGateway(
+export interface TacticsGenerationResult {
+  scene: TacticsScene;
+  raw: string;
+}
+
+/**
+ * raw 응답 텍스트를 함께 반환한다(성공 시), 실패해도 호출부가 raw를 볼 수
+ * 있도록 에러 객체에 raw를 붙여서 던진다 — 결과물이 이상할 때 운영진이
+ * 모델이 실제로 뭘 뱉었는지 디버그 화면에서 바로 확인할 수 있게 하기 위함.
+ */
+export async function generateTacticsScene(
+  description: string
+): Promise<TacticsGenerationResult> {
+  const raw = await callOllamaGateway(
     [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: description },
@@ -235,5 +247,12 @@ export async function generateTacticsScene(description: string): Promise<Tactics
     // 라우트 maxDuration(280s)보다 짧게 넉넉히 잡아 작업 상태 기록 여유를 남긴다.
     260000
   );
-  return sanitizeScene(extractJsonObject(content));
+  try {
+    const scene = sanitizeScene(extractJsonObject(raw));
+    return { scene, raw };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    (err as Error & { raw?: string }).raw = raw;
+    throw err;
+  }
 }

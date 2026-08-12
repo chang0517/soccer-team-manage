@@ -188,13 +188,19 @@ export async function createTacticsJob(
 export async function getTacticsJob(id: number): Promise<TacticsJobRow | null> {
   return usePg ? pg.getTacticsJob(id) : sqlite.getTacticsJob(id);
 }
-export async function completeTacticsJob(id: number, result: TacticsScene) {
+export async function completeTacticsJob(
+  id: number,
+  result: TacticsScene,
+  rawResponse: string | null
+) {
   return usePg
-    ? pg.completeTacticsJob(id, result)
-    : sqlite.completeTacticsJob(id, result);
+    ? pg.completeTacticsJob(id, result, rawResponse)
+    : sqlite.completeTacticsJob(id, result, rawResponse);
 }
-export async function failTacticsJob(id: number, error: string) {
-  return usePg ? pg.failTacticsJob(id, error) : sqlite.failTacticsJob(id, error);
+export async function failTacticsJob(id: number, error: string, rawResponse: string | null) {
+  return usePg
+    ? pg.failTacticsJob(id, error, rawResponse)
+    : sqlite.failTacticsJob(id, error, rawResponse);
 }
 
 export async function getComments(eventId: number): Promise<CommentRow[]> {

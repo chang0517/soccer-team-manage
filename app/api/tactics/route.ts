@@ -34,10 +34,15 @@ export async function POST(request: Request) {
 
   after(async () => {
     try {
-      const scene = await generateTacticsScene(trimmed);
-      await completeTacticsJob(job.id, scene);
+      const { scene, raw } = await generateTacticsScene(trimmed);
+      await completeTacticsJob(job.id, scene, raw);
     } catch (e) {
-      await failTacticsJob(job.id, e instanceof Error ? e.message : "생성에 실패했어요.");
+      const raw = e instanceof Error ? (e as Error & { raw?: string }).raw ?? null : null;
+      await failTacticsJob(
+        job.id,
+        e instanceof Error ? e.message : "생성에 실패했어요.",
+        raw
+      );
     }
   });
 

@@ -82,7 +82,15 @@ export async function callOllamaGateway(
       "Content-Type": "application/json",
       Authorization: `Bearer ${secret}`,
     },
-    body: JSON.stringify({ model, stream: false, messages }),
+    // JSON 모드를 강제해서 앞뒤에 설명이나 코드블록을 덧붙이는 것 같은
+    // 형식 이탈을 최대한 줄인다(스키마 자체를 보장하진 않지만, 최소한
+    // 파싱 가능한 JSON 객체 하나만 나오게는 해준다).
+    body: JSON.stringify({
+      model,
+      stream: false,
+      messages,
+      response_format: { type: "json_object" },
+    }),
   });
   if (!res.ok) {
     throw new Error(`게이트웨이 응답 오류 (HTTP ${res.status})`);

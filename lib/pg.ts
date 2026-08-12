@@ -217,6 +217,7 @@ async function init() {
   await pool.query(
     "ALTER TABLE polls ADD COLUMN IF NOT EXISTS multi_select BOOLEAN NOT NULL DEFAULT true"
   );
+  await pool.query("ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS raw_response TEXT");
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
@@ -725,6 +726,7 @@ function toTacticsJob(r: {
   status: TacticsJobStatus;
   result: TacticsScene | null;
   error: string | null;
+  raw_response: string | null;
   created_at: string;
 }): TacticsJobRow {
   return {
@@ -734,6 +736,7 @@ function toTacticsJob(r: {
     status: r.status,
     result: r.result,
     error: r.error,
+    rawResponse: r.raw_response,
     createdAt: r.created_at,
   };
 }
@@ -758,17 +761,24 @@ export async function getTacticsJob(id: number): Promise<TacticsJobRow | null> {
   return rows[0] ? toTacticsJob(rows[0]) : null;
 }
 
-export async function completeTacticsJob(id: number, result: TacticsScene) {
+export async function completeTacticsJob(
+  id: number,
+  result: TacticsScene,
+  rawResponse: string | null
+) {
   const pool = await ready();
-  await pool.query("UPDATE tactics_jobs SET status='done', result=$1 WHERE id=$2", [
-    JSON.stringify(result),
-    id,
-  ]);
+  await pool.query(
+    "UPDATE tactics_jobs SET status='done', result=$1, raw_response=$2 WHERE id=$3",
+    [JSON.stringify(result), rawResponse, id]
+  );
 }
 
-export async function failTacticsJob(id: number, error: string) {
+export async function failTacticsJob(id: number, error: string, rawResponse: string | null) {
   const pool = await ready();
-  await pool.query("UPDATE tactics_jobs SET status='error', error=$1 WHERE id=$2", [error, id]);
+  await pool.query(
+    "UPDATE tactics_jobs SET status='error', error=$1, raw_response=$2 WHERE id=$3",
+    [error, rawResponse, id]
+  );
 }
 
 // ---------- comments ----------
