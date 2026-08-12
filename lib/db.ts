@@ -202,6 +202,9 @@ export async function failTacticsJob(id: number, error: string, rawResponse: str
     ? pg.failTacticsJob(id, error, rawResponse)
     : sqlite.failTacticsJob(id, error, rawResponse);
 }
+export async function cancelTacticsJob(id: number) {
+  return usePg ? pg.cancelTacticsJob(id) : sqlite.cancelTacticsJob(id);
+}
 
 export async function getComments(eventId: number): Promise<CommentRow[]> {
   return usePg ? pg.getComments(eventId) : sqlite.getComments(eventId);

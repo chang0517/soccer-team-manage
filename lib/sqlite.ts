@@ -769,16 +769,28 @@ export function getTacticsJob(id: number): TacticsJobRow | null {
   return row ? toTacticsJob(row) : null;
 }
 
+// pending 상태일 때만 갱신한다 — 사용자가 취소한 작업이 뒤늦게 끝나서
+// 결과를 덮어써버리는 걸 막는다.
 export function completeTacticsJob(id: number, result: TacticsScene, rawResponse: string | null) {
   getDb()
-    .prepare("UPDATE tactics_jobs SET status='done', result=?, raw_response=? WHERE id=?")
+    .prepare(
+      "UPDATE tactics_jobs SET status='done', result=?, raw_response=? WHERE id=? AND status='pending'"
+    )
     .run(JSON.stringify(result), rawResponse, id);
 }
 
 export function failTacticsJob(id: number, error: string, rawResponse: string | null) {
   getDb()
-    .prepare("UPDATE tactics_jobs SET status='error', error=?, raw_response=? WHERE id=?")
+    .prepare(
+      "UPDATE tactics_jobs SET status='error', error=?, raw_response=? WHERE id=? AND status='pending'"
+    )
     .run(error, rawResponse, id);
+}
+
+export function cancelTacticsJob(id: number) {
+  getDb()
+    .prepare("UPDATE tactics_jobs SET status='cancelled' WHERE id=? AND status='pending'")
+    .run(id);
 }
 
 // ---------- comments ----------

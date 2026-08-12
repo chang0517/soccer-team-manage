@@ -294,7 +294,7 @@ export interface TacticsScene {
   steps: TacticsStep[];
 }
 
-export type TacticsJobStatus = "pending" | "done" | "error";
+export type TacticsJobStatus = "pending" | "done" | "error" | "cancelled";
 
 export interface TacticsJobRow {
   id: number;

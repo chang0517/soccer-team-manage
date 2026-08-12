@@ -96,6 +96,19 @@ export default function TacticsPage() {
     }
   };
 
+  // 맥미니가 백그라운드에서 하던 연산 자체를 즉시 멈추진 못하지만(서버리스라
+  // 실행 중인 작업을 취소할 채널이 없다), 화면에서는 즉시 기다리는 걸
+  // 멈추고 작업을 'cancelled'로 표시해서 나중에 결과가 나와도 무시되게 한다.
+  const cancel = () => {
+    if (status !== "pending") return;
+    localStorage.removeItem(JOB_ID_KEY);
+    if (jobId != null) {
+      fetch(`/api/tactics/${jobId}`, { method: "DELETE" }).catch(() => {});
+    }
+    setJobId(null);
+    setStatus("idle");
+  };
+
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6 md:pb-10">
       <h1 className="mb-1 text-lg font-bold">전술 시뮬레이터</h1>
@@ -120,13 +133,23 @@ export default function TacticsPage() {
         disabled={status === "pending"}
         className="w-full rounded-xl border border-zinc-200 p-3 text-sm disabled:opacity-60"
       />
-      <button
-        onClick={generate}
-        disabled={!user || status === "pending" || !description.trim()}
-        className="mt-2 w-full rounded-xl bg-blue-700 py-2.5 text-sm font-bold text-white disabled:opacity-40"
-      >
-        {status === "pending" ? "만드는 중… (몇 분 걸릴 수 있어요)" : "전술 만들기"}
-      </button>
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={generate}
+          disabled={!user || status === "pending" || !description.trim()}
+          className="flex-1 rounded-xl bg-blue-700 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+        >
+          {status === "pending" ? "만드는 중… (몇 분 걸릴 수 있어요)" : "전술 만들기"}
+        </button>
+        {status === "pending" && (
+          <button
+            onClick={cancel}
+            className="rounded-xl bg-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-600"
+          >
+            취소
+          </button>
+        )}
+      </div>
 
       {error && (
         <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-600">{error}</p>

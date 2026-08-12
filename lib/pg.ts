@@ -761,6 +761,8 @@ export async function getTacticsJob(id: number): Promise<TacticsJobRow | null> {
   return rows[0] ? toTacticsJob(rows[0]) : null;
 }
 
+// pending 상태일 때만 갱신한다 — 사용자가 취소한 작업이 뒤늦게 끝나서
+// 결과를 덮어써버리는 걸 막는다.
 export async function completeTacticsJob(
   id: number,
   result: TacticsScene,
@@ -768,7 +770,7 @@ export async function completeTacticsJob(
 ) {
   const pool = await ready();
   await pool.query(
-    "UPDATE tactics_jobs SET status='done', result=$1, raw_response=$2 WHERE id=$3",
+    "UPDATE tactics_jobs SET status='done', result=$1, raw_response=$2 WHERE id=$3 AND status='pending'",
     [JSON.stringify(result), rawResponse, id]
   );
 }
@@ -776,8 +778,16 @@ export async function completeTacticsJob(
 export async function failTacticsJob(id: number, error: string, rawResponse: string | null) {
   const pool = await ready();
   await pool.query(
-    "UPDATE tactics_jobs SET status='error', error=$1, raw_response=$2 WHERE id=$3",
+    "UPDATE tactics_jobs SET status='error', error=$1, raw_response=$2 WHERE id=$3 AND status='pending'",
     [error, rawResponse, id]
+  );
+}
+
+export async function cancelTacticsJob(id: number) {
+  const pool = await ready();
+  await pool.query(
+    "UPDATE tactics_jobs SET status='cancelled' WHERE id=$1 AND status='pending'",
+    [id]
   );
 }
 
