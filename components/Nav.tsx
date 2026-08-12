@@ -13,6 +13,7 @@ const BASE_TABS = [
   { href: "/ranking", label: "랭킹", icon: "🏆" },
   { href: "/members", label: "멤버", icon: "👥" },
   { href: "/hall-of-fame", label: "전당", icon: "🏅" },
+  { href: "/tactics", label: "전술", icon: "📋" },
 ];
 
 export default function Nav() {

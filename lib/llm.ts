@@ -30,7 +30,7 @@ JSON만 출력하세요.
   명시 안 됐으면 conceded만 0으로 채우고 scored는 null로 두세요.
   메모에 스코어 정보가 전혀 없으면 둘 다 null로 두세요.`;
 
-function extractJsonObject(text: string): Record<string, unknown> {
+export function extractJsonObject(text: string): Record<string, unknown> {
   const cleaned = text.trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
@@ -50,15 +50,20 @@ function toNullableNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+export interface GatewayMessage {
+  role: "system" | "user";
+  content: string;
+}
+
 /**
- * 서버(Vercel)에서 팀 맥미니의 Ollama 게이트웨이를 호출한다.
- * 게이트웨이는 Bearer 토큰으로 보호되어 있고, 내부적으로 로컬 Ollama의
- * OpenAI 호환 /v1/chat/completions로 요청을 그대로 전달한다.
+ * 서버(Vercel)에서 팀 맥미니의 Ollama 게이트웨이를 호출하고 응답 텍스트를
+ * 반환한다. 게이트웨이는 Bearer 토큰으로 보호되어 있고, 내부적으로 로컬
+ * Ollama의 OpenAI 호환 /v1/chat/completions로 요청을 그대로 전달한다.
  * 브라우저가 아니라 서버가 호출하므로 사용자는 어떤 기기에서든 쓸 수 있다.
  */
-export async function parseMatchNotesViaGateway(
-  notes: string
-): Promise<LlmParseResult> {
+export async function callOllamaGateway(
+  messages: GatewayMessage[]
+): Promise<string> {
   const gatewayUrl = process.env.OLLAMA_GATEWAY_URL;
   const secret = process.env.OLLAMA_GATEWAY_SECRET;
   const model = process.env.OLLAMA_MODEL || "gemma4";
@@ -76,14 +81,7 @@ export async function parseMatchNotesViaGateway(
       "Content-Type": "application/json",
       Authorization: `Bearer ${secret}`,
     },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: notes },
-      ],
-    }),
+    body: JSON.stringify({ model, stream: false, messages }),
   });
   if (!res.ok) {
     throw new Error(`게이트웨이 응답 오류 (HTTP ${res.status})`);
@@ -91,6 +89,19 @@ export async function parseMatchNotesViaGateway(
   const data = await res.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error("응답에서 내용을 찾지 못했어요.");
+  return content;
+}
+
+/**
+ * 경기 기록 메모를 팀 맥미니의 Ollama 게이트웨이로 파싱한다.
+ */
+export async function parseMatchNotesViaGateway(
+  notes: string
+): Promise<LlmParseResult> {
+  const content = await callOllamaGateway([
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: notes },
+  ]);
   const obj = extractJsonObject(content);
   const rawPlayers = Array.isArray(obj.players) ? obj.players : [];
   const players: LlmParsedItem[] = rawPlayers
