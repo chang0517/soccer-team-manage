@@ -13,7 +13,6 @@ const BASE_TABS = [
   { href: "/ranking", label: "랭킹", icon: "🏆" },
   { href: "/members", label: "멤버", icon: "👥" },
   { href: "/hall-of-fame", label: "전당", icon: "🏅" },
-  { href: "/tactics", label: "전술", icon: "📋" },
 ];
 
 export default function Nav() {
@@ -23,8 +22,14 @@ export default function Nav() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  // 전술 시뮬레이터는 팀 맥미니의 로컬 AI 자원을 쓰기 때문에 운영진만
+  // 접근할 수 있게 제한한다.
   const tabs = user?.role === "admin"
-    ? [...BASE_TABS, { href: "/admin", label: "운영진", icon: "🛠️" }]
+    ? [
+        ...BASE_TABS,
+        { href: "/tactics", label: "전술", icon: "📋" },
+        { href: "/admin", label: "운영진", icon: "🛠️" },
+      ]
     : BASE_TABS;
 
   const doLogout = async () => {

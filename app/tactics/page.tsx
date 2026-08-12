@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import TacticsBoard from "@/components/TacticsBoard";
 import { useSession } from "@/components/useSession";
 import { PITCH_ZONES, ZONE_COLS, ZONE_ROWS } from "@/lib/tacticsZones";
@@ -37,7 +38,7 @@ function readSavedJobId(): number | null {
 }
 
 export default function TacticsPage() {
-  const { user } = useSession();
+  const { user, loading } = useSession();
   const [description, setDescription] = useState("");
   const [jobId, setJobId] = useState<number | null>(readSavedJobId);
   const [status, setStatus] = useState<"idle" | "pending" | "done" | "error">(() =>
@@ -150,6 +151,19 @@ export default function TacticsPage() {
 
   const elapsedLabel = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`;
 
+  // 팀 맥미니의 로컬 AI 자원을 쓰기 때문에 운영진만 접근할 수 있게 막는다.
+  if (loading) return null;
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="space-y-3 pt-10 text-center">
+        <p className="text-sm text-zinc-500">운영진만 볼 수 있는 페이지예요.</p>
+        <Link href="/" className="font-semibold text-blue-700">
+          홈으로
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6 md:pb-10">
       <h1 className="mb-1 text-lg font-bold">전술 시뮬레이터</h1>
@@ -184,12 +198,6 @@ export default function TacticsPage() {
         </div>
       </details>
 
-      {!user && (
-        <p className="mb-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-          로그인 후 이용할 수 있어요.
-        </p>
-      )}
-
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
@@ -201,7 +209,7 @@ export default function TacticsPage() {
       <div className="mt-2 flex gap-2">
         <button
           onClick={generate}
-          disabled={!user || status === "pending" || !description.trim()}
+          disabled={status === "pending" || !description.trim()}
           className="flex-1 rounded-xl bg-blue-700 py-2.5 text-sm font-bold text-white disabled:opacity-40"
         >
           {status === "pending" ? "만드는 중… (몇 분 걸릴 수 있어요)" : "전술 만들기"}

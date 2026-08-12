@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { getSessionUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { completeTacticsJob, createTacticsJob, failTacticsJob } from "@/lib/db";
 import { getConfiguredModel } from "@/lib/llm";
 import { generateTacticsScene } from "@/lib/tactics";
@@ -18,15 +18,10 @@ import { generateTacticsScene } from "@/lib/tactics";
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
-  const session = await getSessionUser();
+  // 팀 맥미니의 로컬 AI 자원을 쓰기 때문에 운영진만 이용할 수 있게 막는다.
+  const session = await requireAdmin();
   if (!session) {
-    return Response.json({ error: "로그인 후 이용할 수 있어요." }, { status: 401 });
-  }
-  if (!session.memberId) {
-    return Response.json(
-      { error: "멤버 프로필과 연결되지 않아서 이용할 수 없어요." },
-      { status: 400 }
-    );
+    return Response.json({ error: "운영진만 이용할 수 있어요." }, { status: 403 });
   }
 
   const body = await request.json();
