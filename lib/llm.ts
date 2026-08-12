@@ -62,7 +62,8 @@ export interface GatewayMessage {
  * 브라우저가 아니라 서버가 호출하므로 사용자는 어떤 기기에서든 쓸 수 있다.
  */
 export async function callOllamaGateway(
-  messages: GatewayMessage[]
+  messages: GatewayMessage[],
+  timeoutMs = 45000
 ): Promise<string> {
   const gatewayUrl = process.env.OLLAMA_GATEWAY_URL;
   const secret = process.env.OLLAMA_GATEWAY_SECRET;
@@ -76,7 +77,7 @@ export async function callOllamaGateway(
 
   const res = await fetch(gatewayUrl.replace(/\/$/, ""), {
     method: "POST",
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${secret}`,

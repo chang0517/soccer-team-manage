@@ -59,12 +59,13 @@ const SYSTEM_PROMPT = `당신은 조기축구 팀의 전술 상황을 애니메�
 - 좌표는 세로로 긴 축구장을 위에서 내려다본 기준입니다. x는 왼쪽(0)~
   오른쪽(100), y는 우리 팀 골대 쪽(100, 아래)에서 상대 팀 골대 쪽(0, 위)
   까지입니다. 즉 공격은 y가 작아지는 방향입니다.
-- 등장인물은 상황 설명에 나온 핵심 인물만 3~6명으로 제한하세요(전체 22명을
+- 등장인물은 상황 설명에 나온 핵심 인물만 3~5명으로 제한하세요(전체 22명을
   다 그리지 마세요). team은 우리 팀이면 "A", 상대 팀이면 "B"로 표시하세요.
-- steps는 상황이 전개되는 순서대로 2~5개의 장면(키프레임)으로 나누세요.
+- steps는 상황이 전개되는 순서대로 2~4개의 장면(키프레임)으로 나누세요.
   각 step의 positions에는 등장하는 모든 players와(공을 쓰는 상황이면)
   "ball"의 그 시점 좌표를 전부 포함하세요 — 이전 step과 위치가 같아도
-  생략하지 말고 그대로 다시 적으세요.
+  생략하지 말고 그대로 다시 적으세요. 응답은 최대한 간결하게, 스키마에
+  없는 필드나 부가 설명 없이 딱 이 구조로만 채우세요.
 - arrows는 그 step에서 다음 위치로 움직이는 걸 화면에 화살표로 보여주고
   싶을 때만 넣으세요(선택 사항, 없으면 빈 배열).
 - 공이 등장하는 상황이면 hasBall을 true로 하고 모든 step의 positions에
@@ -172,9 +173,14 @@ function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
 }
 
 export async function generateTacticsScene(description: string): Promise<TacticsScene> {
-  const content = await callOllamaGateway([
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: description },
-  ]);
+  const content = await callOllamaGateway(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: description },
+    ],
+    // 경기 기록 파싱보다 훨씬 큰 JSON을 만들어야 해서 시간이 더 걸린다.
+    // 라우트의 maxDuration(60s)보다는 짧게 잡아 응답 조립 여유를 남긴다.
+    55000
+  );
   return sanitizeScene(extractJsonObject(content));
 }
