@@ -166,7 +166,12 @@ export default function TacticsPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6 md:pb-10">
-      <h1 className="mb-1 text-lg font-bold">전술 시뮬레이터</h1>
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="text-lg font-bold">전술 시뮬레이터</h1>
+        <Link href="/tactics/edit" className="text-sm font-semibold text-blue-700">
+          ✏️ 직접 만들기 →
+        </Link>
+      </div>
       <p className="mb-4 text-sm text-zinc-500">
         상황을 글로 설명하면 핵심 인물 몇 명과 움직임 화살표로 전술판 애니메이션을 만들어줘요.
         경기장은 아래처럼 15개 구역(A1~E3)으로 나뉘어 있는데, 설명에 그 구역 코드를

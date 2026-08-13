@@ -1,5 +1,13 @@
 import { callOllamaGateway, extractJsonObject, looksDegenerate } from "./llm";
-import { DEFAULT_ZONE, GOAL_ZONE_LEGEND, PITCH_ZONES, ZONE_LEGEND } from "./tacticsZones";
+import {
+  DEFAULT_ZONE,
+  GOAL_ZONE_LEGEND,
+  PITCH_ZONES,
+  ZONE_LEGEND,
+  isPos,
+  resolveZoneOrPos,
+  separateOverlaps,
+} from "./tacticsZones";
 import type { TacticsArrow, TacticsPlayer, TacticsScene, TacticsStep } from "./types";
 
 const MAX_PLAYERS = 8;
@@ -149,73 +157,6 @@ kind를 "steal"로 표시합니다:
   ]
 }`;
 
-function clampCoord(v: unknown, fallback: number): number {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(100, Math.max(0, n));
-}
-
-function isPos(v: unknown): v is { x: number; y: number } {
-  return typeof v === "object" && v !== null && "x" in v && "y" in v;
-}
-
-/** 구역 코드("B3") 또는(구식 호환용) {x,y} 객체를 실제 좌표로 바꾼다.
- * 둘 다 아니면 fallback을 쓴다. */
-function resolveZoneOrPos(
-  v: unknown,
-  fallback: { x: number; y: number }
-): { x: number; y: number } {
-  if (typeof v === "string") {
-    const zone = PITCH_ZONES[v.trim().toUpperCase()];
-    if (zone) return { x: zone.x, y: zone.y };
-    return fallback;
-  }
-  if (isPos(v)) {
-    return { x: clampCoord(v.x, fallback.x), y: clampCoord(v.y, fallback.y) };
-  }
-  return fallback;
-}
-
-/**
- * 로컬 모델이 서로 다른 선수에게 거의 같은 좌표를 주는 경우가 있어서
- * (라벨이 겹쳐 보이고 애니메이션도 안 움직이는 것처럼 보임), 같은 step
- * 안에서 너무 가까운 좌표끼리는 원 모양으로 살짝 벌려서 항상 구분되게
- * 만든다. 같은 구역을 고른 선수가 여럿이면 자주 발생하므로 여전히 필요.
- *
- * "ball"은 일부러 대상에서 뺀다 — 공이 어떤 선수와 같은 구역이라는 건
- * "그 선수가 공을 갖고 있다"는 뜻이라 그 선수 위치에 그대로 겹쳐 있어야
- * 자연스럽다. 억지로 옆으로 밀어내면 패스 화살표가 시작점이랑 안 맞아
- * 보인다.
- */
-function separateOverlaps(positions: Record<string, { x: number; y: number }>) {
-  const OVERLAP_DIST = 3;
-  const NUDGE_RADIUS = 4.5;
-  const ids = Object.keys(positions).filter((id) => id !== "ball");
-  const visited = new Set<string>();
-  for (const id of ids) {
-    if (visited.has(id)) continue;
-    const base = positions[id];
-    const group = ids.filter(
-      (other) =>
-        !visited.has(other) &&
-        Math.abs(positions[other].x - base.x) <= OVERLAP_DIST &&
-        Math.abs(positions[other].y - base.y) <= OVERLAP_DIST
-    );
-    if (group.length < 2) {
-      visited.add(id);
-      continue;
-    }
-    group.forEach((memberId, i) => {
-      visited.add(memberId);
-      const angle = (2 * Math.PI * i) / group.length;
-      positions[memberId] = {
-        x: clampCoord(base.x + NUDGE_RADIUS * Math.cos(angle), base.x),
-        y: clampCoord(base.y + NUDGE_RADIUS * Math.sin(angle), base.y),
-      };
-    });
-  }
-}
-
 /**
  * 로컬 모델이 가끔 선수 id를 오타로 쓴다(예: "p1" 대신 "t1") — 실제로
  * 이 오타 때문에 그 선수만 이전 step 위치에 멈춰 있고 공만 이동한 것처럼
@@ -240,7 +181,7 @@ function recoverTypoKeys(
  * 필드가 비었거나 형식이 어긋나면 잘라내거나 합리적인 값으로 채운다 —
  * 애니메이션 컴포넌트가 항상 완전한 데이터를 받도록 보장한다.
  */
-function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
+export function sanitizeScene(raw: Record<string, unknown>): TacticsScene {
   const rawPlayers = Array.isArray(raw.players) ? raw.players : [];
   const players: TacticsPlayer[] = rawPlayers
     .filter(
