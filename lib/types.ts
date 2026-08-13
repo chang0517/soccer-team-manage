@@ -62,6 +62,12 @@ export interface AppUser {
   status: UserStatus;
   memberId: number | null;
   createdAt: string;
+  // 회원가입 때 본인이 입력한 값 — 운영진이 "새 멤버로 추가"로 승인할 때
+  // 미리 채워주는 용도로만 쓰고, 승인 후(Member 생성 후)에는 의미가 없다.
+  draftPos1: PosGroup | null;
+  draftPos2: PosGroup | null;
+  draftBackNo: number | null;
+  draftPhone: string | null;
 }
 
 export interface SessionUser {
@@ -210,11 +216,19 @@ export interface HistoricalStats {
   bonusPts: number; // 스프레드시트의 수동 가산점 (예: 이현재 +1)
 }
 
+// "coach_feedback"은 게시판 안의 별도 하위 페이지(코치 피드백)에 실리는
+// 글이고, feedbackDate는 그 피드백이 해당하는 날짜(작성일이 아니라 훈련/
+// 경기가 있었던 날짜)로 그 하위 페이지에서 날짜별로 묶어서 보여줄 때 쓴다.
+// "notice"(일반 공지)에서는 항상 null.
+export type AnnouncementCategory = "notice" | "coach_feedback";
+
 export interface AnnouncementRow {
   id: number;
   title: string;
   body: string;
   authorName: string;
+  category: AnnouncementCategory;
+  feedbackDate: string | null;
   createdAt: string;
   updatedAt: string;
 }

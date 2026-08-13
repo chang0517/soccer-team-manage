@@ -18,6 +18,7 @@ export default function NoticeDetailPage({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [feedbackDate, setFeedbackDate] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -27,6 +28,7 @@ export default function NoticeDetailPage({
     setItem(data);
     setTitle(data.title);
     setBody(data.body);
+    setFeedbackDate(data.feedbackDate ?? "");
   };
 
   useEffect(() => {
@@ -36,13 +38,18 @@ export default function NoticeDetailPage({
   if (!item) return <p className="py-10 text-center text-zinc-400">불러오는 중…</p>;
 
   const isAdmin = user?.role === "admin";
+  const isCoachFeedback = item.category === "coach_feedback";
+  const backHref = isCoachFeedback ? "/notice/coach" : "/notice";
+  const backLabel = isCoachFeedback ? "← 코치 피드백 목록" : "← 게시판";
 
   const save = async () => {
     setSaving(true);
     await fetch(`/api/announcements/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, body }),
+      body: JSON.stringify(
+        isCoachFeedback ? { title, body, feedbackDate } : { title, body }
+      ),
     });
     setSaving(false);
     setEditing(false);
@@ -50,22 +57,33 @@ export default function NoticeDetailPage({
   };
 
   const remove = async () => {
-    if (!confirm("이 공지를 삭제할까요?")) return;
+    if (!confirm("이 글을 삭제할까요?")) return;
     await fetch(`/api/announcements/${id}`, { method: "DELETE" });
-    router.push("/notice");
+    router.push(backHref);
   };
 
   const input = "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm";
 
   return (
     <div className="space-y-4">
-      <Link href="/notice" className="text-sm text-blue-700">
-        ← 공지사항 목록
+      <Link href={backHref} className="text-sm text-blue-700">
+        {backLabel}
       </Link>
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-4">
         {editing ? (
           <div className="space-y-3">
+            {isCoachFeedback && (
+              <label className="block text-xs font-semibold text-zinc-500">
+                날짜
+                <input
+                  className={`${input} mt-1`}
+                  type="date"
+                  value={feedbackDate}
+                  onChange={(e) => setFeedbackDate(e.target.value)}
+                />
+              </label>
+            )}
             <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} />
             <textarea
               className={`${input} resize-none`}
@@ -92,7 +110,14 @@ export default function NoticeDetailPage({
         ) : (
           <>
             <div className="flex items-start justify-between">
-              <h1 className="text-lg font-bold">{item.title}</h1>
+              <div>
+                {isCoachFeedback && (
+                  <span className="mb-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                    🗣️ 코치 피드백
+                  </span>
+                )}
+                <h1 className="text-lg font-bold">{item.title}</h1>
+              </div>
               {isAdmin && (
                 <div className="flex shrink-0 gap-2 text-xs">
                   <button
@@ -108,7 +133,10 @@ export default function NoticeDetailPage({
               )}
             </div>
             <p className="mt-1 text-xs text-zinc-400">
-              {item.authorName} · {new Date(item.createdAt).toLocaleString("ko-KR")}
+              {item.authorName} ·{" "}
+              {isCoachFeedback && item.feedbackDate
+                ? new Date(`${item.feedbackDate}T00:00:00`).toLocaleDateString("ko-KR")
+                : new Date(item.createdAt).toLocaleString("ko-KR")}
             </p>
             <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p>
           </>

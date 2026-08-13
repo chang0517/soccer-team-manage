@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import { ROSTER } from "./roster";
 import type {
+  AnnouncementCategory,
   AnnouncementRow,
   AppUser,
   CommentRow,
@@ -110,7 +111,11 @@ async function init() {
       role TEXT NOT NULL DEFAULT 'player',
       status TEXT NOT NULL DEFAULT 'pending',
       member_id INTEGER,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      draft_pos1 TEXT,
+      draft_pos2 TEXT,
+      draft_back_no INTEGER,
+      draft_phone TEXT
     );
     CREATE TABLE IF NOT EXISTS comments (
       id SERIAL PRIMARY KEY,
@@ -132,6 +137,8 @@ async function init() {
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       author_name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'notice',
+      feedback_date TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
@@ -223,6 +230,14 @@ async function init() {
   await pool.query(
     "ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT ''"
   );
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_pos1 TEXT");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_pos2 TEXT");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_back_no INTEGER");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_phone TEXT");
+  await pool.query(
+    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'notice'"
+  );
+  await pool.query("ALTER TABLE announcements ADD COLUMN IF NOT EXISTS feedback_date TEXT");
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
   if (rows[0].c === 0) {
     for (const [name, p1, p2] of ROSTER) {
@@ -555,6 +570,10 @@ type UserDbRow = {
   status: UserStatus;
   member_id: number | null;
   created_at: string;
+  draft_pos1: PosGroup | null;
+  draft_pos2: PosGroup | null;
+  draft_back_no: number | null;
+  draft_phone: string | null;
 };
 
 function toUser(r: UserDbRow): AppUser {
@@ -566,6 +585,10 @@ function toUser(r: UserDbRow): AppUser {
     status: r.status,
     memberId: r.member_id,
     createdAt: r.created_at,
+    draftPos1: r.draft_pos1,
+    draftPos2: r.draft_pos2,
+    draftBackNo: r.draft_back_no,
+    draftPhone: r.draft_phone,
   };
 }
 
@@ -626,11 +649,26 @@ export async function createUser(u: {
   role: UserRole;
   status: UserStatus;
   memberId: number | null;
+  draftPos1?: PosGroup | null;
+  draftPos2?: PosGroup | null;
+  draftBackNo?: number | null;
+  draftPhone?: string | null;
 }): Promise<AppUser> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO users (username, password_hash, display_name, role, status, member_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-    [u.username, u.passwordHash, u.displayName, u.role, u.status, u.memberId]
+    "INSERT INTO users (username, password_hash, display_name, role, status, member_id, draft_pos1, draft_pos2, draft_back_no, draft_phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
+    [
+      u.username,
+      u.passwordHash,
+      u.displayName,
+      u.role,
+      u.status,
+      u.memberId,
+      u.draftPos1 ?? null,
+      u.draftPos2 ?? null,
+      u.draftBackNo ?? null,
+      u.draftPhone ?? null,
+    ]
   );
   return (await getUserById(rows[0].id))!;
 }
@@ -903,6 +941,8 @@ function toAnnouncement(r: {
   title: string;
   body: string;
   author_name: string;
+  category: AnnouncementCategory;
+  feedback_date: string | null;
   created_at: string;
   updated_at: string;
 }): AnnouncementRow {
@@ -911,6 +951,8 @@ function toAnnouncement(r: {
     title: r.title,
     body: r.body,
     authorName: r.author_name,
+    category: r.category,
+    feedbackDate: r.feedback_date,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -935,17 +977,24 @@ export async function createAnnouncement(
 ): Promise<AnnouncementRow> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO announcements (title, body, author_name) VALUES ($1, $2, $3) RETURNING id",
-    [a.title, a.body, a.authorName]
+    "INSERT INTO announcements (title, body, author_name, category, feedback_date) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    [a.title, a.body, a.authorName, a.category, a.feedbackDate]
   );
   return (await getAnnouncement(rows[0].id))!;
 }
 
 export async function updateAnnouncement(
   id: number,
-  patch: { title: string; body: string }
+  patch: { title: string; body: string; feedbackDate?: string | null }
 ) {
   const pool = await ready();
+  if (patch.feedbackDate !== undefined) {
+    await pool.query(
+      "UPDATE announcements SET title=$1, body=$2, feedback_date=$3, updated_at=now() WHERE id=$4",
+      [patch.title, patch.body, patch.feedbackDate, id]
+    );
+    return;
+  }
   await pool.query(
     "UPDATE announcements SET title=$1, body=$2, updated_at=now() WHERE id=$3",
     [patch.title, patch.body, id]

@@ -13,6 +13,7 @@ import type {
   Poll,
   PollOption,
   PollVoteRow,
+  PosGroup,
   RecordRow,
   TacticsJobRow,
   TacticsScene,
@@ -131,6 +132,10 @@ export async function createUser(u: {
   role: UserRole;
   status: UserStatus;
   memberId: number | null;
+  draftPos1?: PosGroup | null;
+  draftPos2?: PosGroup | null;
+  draftBackNo?: number | null;
+  draftPhone?: string | null;
 }): Promise<AppUser> {
   return usePg ? pg.createUser(u) : sqlite.createUser(u);
 }
@@ -253,7 +258,7 @@ export async function createAnnouncement(
 }
 export async function updateAnnouncement(
   id: number,
-  patch: { title: string; body: string }
+  patch: { title: string; body: string; feedbackDate?: string | null }
 ) {
   return usePg
     ? pg.updateAnnouncement(id, patch)

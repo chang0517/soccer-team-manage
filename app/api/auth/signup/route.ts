@@ -7,12 +7,21 @@ import {
   listMembers,
 } from "@/lib/db";
 import { isWhitelistedAdminName } from "@/lib/roles";
+import { POS_GROUPS } from "@/lib/types";
+import type { PosGroup } from "@/lib/types";
 
 export async function POST(request: Request) {
   const body = await request.json();
   const username = String(body?.username ?? "").trim();
   const password = String(body?.password ?? "");
   const displayName = String(body?.displayName ?? "").trim();
+  const pos1 = POS_GROUPS.includes(body?.pos1) ? (body.pos1 as PosGroup) : "CB";
+  const pos2 = POS_GROUPS.includes(body?.pos2) ? (body.pos2 as PosGroup) : "WB";
+  const backNo =
+    body?.backNo === null || body?.backNo === undefined || body?.backNo === ""
+      ? null
+      : Number(body.backNo);
+  const phone = typeof body?.phone === "string" && body.phone.trim() ? body.phone.trim() : null;
 
   if (username.length < 3 || password.length < 4 || !displayName) {
     return Response.json(
@@ -46,6 +55,10 @@ export async function POST(request: Request) {
     role: isFirstUser || isWhitelisted ? "admin" : "player",
     status: autoApprove ? "approved" : "pending",
     memberId,
+    draftPos1: pos1,
+    draftPos2: pos2,
+    draftBackNo: backNo,
+    draftPhone: phone,
   });
 
   if (autoApprove) {

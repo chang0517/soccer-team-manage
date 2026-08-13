@@ -11,7 +11,23 @@ interface ApprovalDraft {
   memberId: string;
   pos1: PosGroup;
   pos2: PosGroup;
+  backNo: string;
+  phone: string;
   role: "admin" | "player";
+}
+
+// 대기 유저가 가입 때 스스로 입력한 값으로 초기 draft를 채운다(없으면
+// 예전 방식대로 기본값). 운영진은 승인 전에 이 값을 그대로 두거나 바꿀 수 있다.
+function initialDraft(u: AppUser): ApprovalDraft {
+  return {
+    mode: "link",
+    memberId: "",
+    pos1: u.draftPos1 ?? "CB",
+    pos2: u.draftPos2 ?? "WB",
+    backNo: u.draftBackNo != null ? String(u.draftBackNo) : "",
+    phone: u.draftPhone ?? "",
+    role: u.role,
+  };
 }
 
 export default function AdminPage() {
@@ -31,14 +47,7 @@ export default function AdminPage() {
       setDrafts((prev) => {
         const next = { ...prev };
         for (const u of p as AppUser[]) {
-          if (!next[u.id])
-            next[u.id] = {
-              mode: "link",
-              memberId: "",
-              pos1: "CB",
-              pos2: "WB",
-              role: u.role,
-            };
+          if (!next[u.id]) next[u.id] = initialDraft(u);
         }
         return next;
       });
@@ -77,7 +86,13 @@ export default function AdminPage() {
           }
         : {
             action: "approve",
-            newMember: { name: u.displayName, pos1: draft.pos1, pos2: draft.pos2 },
+            newMember: {
+              name: u.displayName,
+              pos1: draft.pos1,
+              pos2: draft.pos2,
+              backNo: draft.backNo === "" ? null : Number(draft.backNo),
+              phone: draft.phone.trim() || null,
+            },
             role: draft.role,
           };
     await fetch(`/api/admin/users/${u.id}`, {
@@ -108,6 +123,9 @@ export default function AdminPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">운영진 · 가입 승인</h1>
         <div className="flex flex-col items-end gap-1 text-sm">
+          <Link href="/members" className="font-semibold text-blue-700">
+            선수 명단 관리 →
+          </Link>
           <Link href="/admin/fines" className="font-semibold text-blue-700">
             이번 달 미투표자 →
           </Link>
@@ -129,13 +147,7 @@ export default function AdminPage() {
 
       <div className="space-y-3">
         {pending.map((u) => {
-          const draft = drafts[u.id] ?? {
-            mode: "link",
-            memberId: "",
-            pos1: "CB",
-            pos2: "WB",
-            role: u.role,
-          };
+          const draft = drafts[u.id] ?? initialDraft(u);
           return (
             <div key={u.id} className="rounded-2xl border border-zinc-200 bg-white p-4">
               <p className="font-bold">
@@ -203,29 +215,50 @@ export default function AdminPage() {
                   ))}
                 </select>
               ) : (
-                <div className="flex gap-2">
-                  <select
-                    className={input}
-                    value={draft.pos1}
-                    onChange={(e) => setDraft(u.id, { pos1: e.target.value as PosGroup })}
-                  >
-                    {POS_GROUPS.map((g) => (
-                      <option key={g} value={g}>
-                        1순위 {POS_LABELS[g]}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className={input}
-                    value={draft.pos2}
-                    onChange={(e) => setDraft(u.id, { pos2: e.target.value as PosGroup })}
-                  >
-                    {POS_GROUPS.map((g) => (
-                      <option key={g} value={g}>
-                        2순위 {POS_LABELS[g]}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-2">
+                  <p className="text-xs text-zinc-400">
+                    가입 신청자가 스스로 입력한 값이 미리 채워져 있어요 — 필요하면 바꾸세요.
+                  </p>
+                  <div className="flex gap-2">
+                    <select
+                      className={input}
+                      value={draft.pos1}
+                      onChange={(e) => setDraft(u.id, { pos1: e.target.value as PosGroup })}
+                    >
+                      {POS_GROUPS.map((g) => (
+                        <option key={g} value={g}>
+                          1순위 {POS_LABELS[g]}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className={input}
+                      value={draft.pos2}
+                      onChange={(e) => setDraft(u.id, { pos2: e.target.value as PosGroup })}
+                    >
+                      {POS_GROUPS.map((g) => (
+                        <option key={g} value={g}>
+                          2순위 {POS_LABELS[g]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      className={input}
+                      type="number"
+                      placeholder="등번호 (선택)"
+                      value={draft.backNo}
+                      onChange={(e) => setDraft(u.id, { backNo: e.target.value })}
+                    />
+                    <input
+                      className={input}
+                      type="tel"
+                      placeholder="전화번호 (선택)"
+                      value={draft.phone}
+                      onChange={(e) => setDraft(u.id, { phone: e.target.value })}
+                    />
+                  </div>
                 </div>
               )}
 

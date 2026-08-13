@@ -13,13 +13,21 @@ export async function POST(request: Request) {
   const body = await request.json();
   const title = String(body?.title ?? "").trim();
   const text = String(body?.body ?? "").trim();
+  const category = body?.category === "coach_feedback" ? "coach_feedback" : "notice";
+  const feedbackDate =
+    category === "coach_feedback" ? String(body?.feedbackDate ?? "").trim() || null : null;
   if (!title || !text) {
     return Response.json({ error: "제목과 내용을 입력해 주세요." }, { status: 400 });
+  }
+  if (category === "coach_feedback" && !feedbackDate) {
+    return Response.json({ error: "날짜를 선택해 주세요." }, { status: 400 });
   }
   const announcement = await createAnnouncement({
     title,
     body: text,
     authorName: session.displayName,
+    category,
+    feedbackDate,
   });
   return Response.json(announcement, { status: 201 });
 }

@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import HallOfFameSection from "@/components/HallOfFameSection";
 import type { PosCategory, RankingRow } from "@/lib/types";
 import { POS_CATEGORY, POS_CATEGORY_LABELS } from "@/lib/types";
 import { seasonLabel } from "@/lib/season";
+
+const VIEW_TABS = [
+  { key: "ranking" as const, label: "시즌 랭킹" },
+  { key: "hof" as const, label: "명예의 전당" },
+];
 
 const TABS: { key: PosCategory | "ALL"; label: string }[] = [
   { key: "ALL", label: "전체" },
@@ -32,6 +38,7 @@ export default function RankingPage() {
   const [tab, setTab] = useState<PosCategory | "ALL">("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [view, setView] = useState<"ranking" | "hof">("ranking");
 
   useEffect(() => {
     fetch("/api/ranking/seasons").then((r) => r.json()).then(setSeasons);
@@ -66,6 +73,24 @@ export default function RankingPage() {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-1.5">
+        {VIEW_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`rounded-xl py-2 text-sm font-semibold ${
+              view === t.key ? "bg-blue-900 text-white" : "bg-zinc-100 text-zinc-600"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === "hof" && <HallOfFameSection />}
+
+      {view === "ranking" && (
+      <>
       <h1 className="text-lg font-bold">시즌 랭킹</h1>
       <p className="rounded-xl bg-zinc-100 px-3 py-2 text-xs text-zinc-500">
         출전 1.5점 · 골 1.4점 · 어시스트 1.25점 · 클린시트 시 GK·센터백·윙백
@@ -198,6 +223,8 @@ export default function RankingPage() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { ROSTER } from "./roster";
 import type {
+  AnnouncementCategory,
   AnnouncementRow,
   AppUser,
   CommentRow,
@@ -94,7 +95,11 @@ function createDb(): Database.Database {
       role TEXT NOT NULL DEFAULT 'player',
       status TEXT NOT NULL DEFAULT 'pending',
       member_id INTEGER,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      draft_pos1 TEXT,
+      draft_pos2 TEXT,
+      draft_back_no INTEGER,
+      draft_phone TEXT
     );
     CREATE TABLE IF NOT EXISTS comments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,6 +121,8 @@ function createDb(): Database.Database {
       title TEXT NOT NULL,
       body TEXT NOT NULL,
       author_name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'notice',
+      feedback_date TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -226,6 +233,33 @@ function createDb(): Database.Database {
   }
   if (tacticsJobCols.length > 0 && !tacticsJobCols.some((c) => c.name === "model")) {
     db.exec("ALTER TABLE tactics_jobs ADD COLUMN model TEXT NOT NULL DEFAULT ''");
+  }
+  const userCols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  for (const col of ["draft_pos1", "draft_pos2"]) {
+    if (!userCols.some((c) => c.name === col)) {
+      db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
+    }
+  }
+  if (!userCols.some((c) => c.name === "draft_back_no")) {
+    db.exec("ALTER TABLE users ADD COLUMN draft_back_no INTEGER");
+  }
+  if (!userCols.some((c) => c.name === "draft_phone")) {
+    db.exec("ALTER TABLE users ADD COLUMN draft_phone TEXT");
+  }
+  const announcementCols = db.prepare("PRAGMA table_info(announcements)").all() as {
+    name: string;
+  }[];
+  if (
+    announcementCols.length > 0 &&
+    !announcementCols.some((c) => c.name === "category")
+  ) {
+    db.exec("ALTER TABLE announcements ADD COLUMN category TEXT NOT NULL DEFAULT 'notice'");
+  }
+  if (
+    announcementCols.length > 0 &&
+    !announcementCols.some((c) => c.name === "feedback_date")
+  ) {
+    db.exec("ALTER TABLE announcements ADD COLUMN feedback_date TEXT");
   }
   seedIfEmpty(db);
   return db;
@@ -555,6 +589,10 @@ type UserDbRow = {
   status: UserStatus;
   member_id: number | null;
   created_at: string;
+  draft_pos1: PosGroup | null;
+  draft_pos2: PosGroup | null;
+  draft_back_no: number | null;
+  draft_phone: string | null;
 };
 
 function toUser(r: UserDbRow): AppUser {
@@ -566,6 +604,10 @@ function toUser(r: UserDbRow): AppUser {
     status: r.status,
     memberId: r.member_id,
     createdAt: r.created_at,
+    draftPos1: r.draft_pos1,
+    draftPos2: r.draft_pos2,
+    draftBackNo: r.draft_back_no,
+    draftPhone: r.draft_phone,
   };
 }
 
@@ -620,11 +662,15 @@ export function createUser(u: {
   role: UserRole;
   status: UserStatus;
   memberId: number | null;
+  draftPos1?: PosGroup | null;
+  draftPos2?: PosGroup | null;
+  draftBackNo?: number | null;
+  draftPhone?: string | null;
 }): AppUser {
   const createdAt = new Date().toISOString();
   const r = getDb()
     .prepare(
-      "INSERT INTO users (username, password_hash, display_name, role, status, member_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO users (username, password_hash, display_name, role, status, member_id, created_at, draft_pos1, draft_pos2, draft_back_no, draft_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .run(
       u.username,
@@ -633,7 +679,11 @@ export function createUser(u: {
       u.role,
       u.status,
       u.memberId,
-      createdAt
+      createdAt,
+      u.draftPos1 ?? null,
+      u.draftPos2 ?? null,
+      u.draftBackNo ?? null,
+      u.draftPhone ?? null
     );
   return getUserById(Number(r.lastInsertRowid))!;
 }
@@ -913,6 +963,8 @@ type AnnouncementDbRow = {
   title: string;
   body: string;
   author_name: string;
+  category: AnnouncementCategory;
+  feedback_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -923,6 +975,8 @@ function toAnnouncement(r: AnnouncementDbRow): AnnouncementRow {
     title: r.title,
     body: r.body,
     authorName: r.author_name,
+    category: r.category,
+    feedbackDate: r.feedback_date,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -948,13 +1002,24 @@ export function createAnnouncement(
   const now = new Date().toISOString();
   const r = getDb()
     .prepare(
-      "INSERT INTO announcements (title, body, author_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO announcements (title, body, author_name, category, feedback_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
-    .run(a.title, a.body, a.authorName, now, now);
+    .run(a.title, a.body, a.authorName, a.category, a.feedbackDate, now, now);
   return getAnnouncement(Number(r.lastInsertRowid))!;
 }
 
-export function updateAnnouncement(id: number, patch: { title: string; body: string }) {
+export function updateAnnouncement(
+  id: number,
+  patch: { title: string; body: string; feedbackDate?: string | null }
+) {
+  if (patch.feedbackDate !== undefined) {
+    getDb()
+      .prepare(
+        "UPDATE announcements SET title=?, body=?, feedback_date=?, updated_at=? WHERE id=?"
+      )
+      .run(patch.title, patch.body, patch.feedbackDate, new Date().toISOString(), id);
+    return;
+  }
   getDb()
     .prepare("UPDATE announcements SET title=?, body=?, updated_at=? WHERE id=?")
     .run(patch.title, patch.body, new Date().toISOString(), id);

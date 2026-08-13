@@ -20,13 +20,17 @@ export async function POST(
   if (action === "approve") {
     let memberId: number | null = body?.memberId ?? null;
     if (!memberId && body?.newMember) {
+      const backNo =
+        body.newMember.backNo != null && Number.isFinite(Number(body.newMember.backNo))
+          ? Number(body.newMember.backNo)
+          : null;
       const created = await createMember({
         name: body.newMember.name,
-        backNo: null,
+        backNo,
         pos1: body.newMember.pos1 ?? "CB",
         pos2: body.newMember.pos2 ?? "WB",
         isGuest: false,
-        phone: null,
+        phone: typeof body.newMember.phone === "string" ? body.newMember.phone : null,
       });
       memberId = created.id;
     }

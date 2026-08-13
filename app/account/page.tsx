@@ -55,6 +55,15 @@ export default function AccountPage() {
       <p className="text-center text-sm text-zinc-500">
         {user.displayName}님 ({user.username})
       </p>
+      {user.role === "admin" && (
+        <div className="space-y-2 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+          <p className="text-sm font-bold text-blue-900">운영진</p>
+          <Link href="/admin" className="block text-sm font-semibold text-blue-700">
+            가입 승인 관리 →
+          </Link>
+        </div>
+      )}
+
       <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
         <div>
           <label className="text-xs font-semibold text-zinc-500">현재 비밀번호</label>

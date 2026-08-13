@@ -3,12 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { POS_GROUPS, POS_LABELS } from "@/lib/types";
+import type { PosGroup } from "@/lib/types";
 
 export default function SignupPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [pos1, setPos1] = useState<PosGroup>("CB");
+  const [pos2, setPos2] = useState<PosGroup>("WB");
+  const [backNo, setBackNo] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [pendingMsg, setPendingMsg] = useState("");
@@ -25,6 +31,10 @@ export default function SignupPage() {
         username: username.trim(),
         password,
         displayName: displayName.trim(),
+        pos1,
+        pos2,
+        backNo: backNo === "" ? null : Number(backNo),
+        phone: phone.trim() || null,
       }),
     });
     const data = await res.json();
@@ -89,6 +99,56 @@ export default function SignupPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-semibold text-zinc-500">1순위 포지션</label>
+            <select
+              className={input}
+              value={pos1}
+              onChange={(e) => setPos1(e.target.value as PosGroup)}
+            >
+              {POS_GROUPS.map((g) => (
+                <option key={g} value={g}>
+                  {g} · {POS_LABELS[g]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-zinc-500">2순위 포지션</label>
+            <select
+              className={input}
+              value={pos2}
+              onChange={(e) => setPos2(e.target.value as PosGroup)}
+            >
+              {POS_GROUPS.map((g) => (
+                <option key={g} value={g}>
+                  {g} · {POS_LABELS[g]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-semibold text-zinc-500">등번호 (선택)</label>
+            <input
+              className={input}
+              type="number"
+              value={backNo}
+              onChange={(e) => setBackNo(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-zinc-500">전화번호 (선택)</label>
+            <input
+              className={input}
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </div>
         </div>
         {error && <p className="text-sm text-red-500">{error}</p>}
         <button

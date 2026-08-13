@@ -43,11 +43,12 @@ export default function NoticeListPage() {
   };
 
   const input = "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm";
+  const notices = items.filter((a) => a.category !== "coach_feedback");
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">공지사항</h1>
+        <h1 className="text-lg font-bold">게시판</h1>
         {user?.role === "admin" && (
           <button
             onClick={() => setShowForm((v) => !v)}
@@ -57,6 +58,12 @@ export default function NoticeListPage() {
           </button>
         )}
       </div>
+      <Link
+        href="/notice/coach"
+        className="block rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700"
+      >
+        🗣️ 코치 피드백 보기 →
+      </Link>
 
       {showForm && (
         <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
@@ -84,14 +91,14 @@ export default function NoticeListPage() {
         </div>
       )}
 
-      {items.length === 0 && (
+      {notices.length === 0 && (
         <p className="rounded-2xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-400">
           아직 공지사항이 없어요.
         </p>
       )}
 
       <div className="space-y-2">
-        {items.map((a) => (
+        {notices.map((a) => (
           <Link
             key={a.id}
             href={`/notice/${a.id}`}

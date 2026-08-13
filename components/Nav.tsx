@@ -5,14 +5,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "./useSession";
 
+// "멤버"(회원가입 때 입력하고 필요하면 /members에서 직접 수정 — 운영진은
+// /admin에서 링크로 들어감), "전당"(랭킹 페이지 안 탭으로 통합), "운영진"
+// (계정 설정 안 링크로 이동)은 더 이상 바텀 네비 탭이 아니다.
 const BASE_TABS = [
   { href: "/", label: "홈", icon: "🏠" },
   { href: "/schedule", label: "일정", icon: "📅" },
-  { href: "/notice", label: "공지", icon: "📢" },
+  { href: "/notice", label: "게시판", icon: "📢" },
   { href: "/polls", label: "투표", icon: "🗳️" },
   { href: "/ranking", label: "랭킹", icon: "🏆" },
-  { href: "/members", label: "멤버", icon: "👥" },
-  { href: "/hall-of-fame", label: "전당", icon: "🏅" },
 ];
 
 export default function Nav() {
@@ -25,11 +26,7 @@ export default function Nav() {
   // 전술 시뮬레이터는 팀 맥미니의 로컬 AI 자원을 쓰기 때문에 운영진만
   // 접근할 수 있게 제한한다.
   const tabs = user?.role === "admin"
-    ? [
-        ...BASE_TABS,
-        { href: "/tactics", label: "전술", icon: "📋" },
-        { href: "/admin", label: "운영진", icon: "🛠️" },
-      ]
+    ? [...BASE_TABS, { href: "/tactics", label: "전술", icon: "📋" }]
     : BASE_TABS;
 
   const doLogout = async () => {

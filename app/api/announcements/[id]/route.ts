@@ -25,7 +25,14 @@ export async function PATCH(
   if (!title || !text) {
     return Response.json({ error: "제목과 내용을 입력해 주세요." }, { status: 400 });
   }
-  await updateAnnouncement(Number(id), { title, body: text });
+  const patch: { title: string; body: string; feedbackDate?: string | null } = {
+    title,
+    body: text,
+  };
+  if (body?.feedbackDate !== undefined) {
+    patch.feedbackDate = String(body.feedbackDate ?? "").trim() || null;
+  }
+  await updateAnnouncement(Number(id), patch);
   return Response.json({ ok: true });
 }
 

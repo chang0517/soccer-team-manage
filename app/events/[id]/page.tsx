@@ -1228,7 +1228,7 @@ export default function EventDetailPage({
                 {addingGuest ? "추가 중…" : "용병 추가 + 이 경기 참석 등록"}
               </button>
               <p className="text-xs text-zinc-400">
-                이 경기에만 쓰는 임시 참가자예요. 멤버 탭에도 &ldquo;용병&rdquo;
+                이 경기에만 쓰는 임시 참가자예요. 멤버 명단에도 &ldquo;용병&rdquo;
                 표시로 남아요.
               </p>
             </div>
@@ -1327,7 +1327,7 @@ export default function EventDetailPage({
           <p className="mb-3 text-xs text-zinc-400">
             {isScrimmage
               ? "내전(자체 훈련) 모드예요. 참석자를 포지션 균형에 맞춰 두 팀으로 나눠서, 팀마다 4-1-2-2-1 포메이션·쿼터를 따로 관리해요."
-              : "경기 3일 전이 되면 참석 투표 기준으로 쿼터별(1~4쿼터) 스쿼드가 자동 생성돼요. 포지션은 각자 멤버 탭의 1·2순위 선호를, 출전 기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요."}
+              : "경기 3일 전이 되면 참석 투표 기준으로 쿼터별(1~4쿼터) 스쿼드가 자동 생성돼요. 포지션은 각자 등록된 1·2순위 선호를, 출전 기회는 쿼터를 거듭할수록 덜 뛴 사람을 우선해서 나눠요."}
             {" "}운영진 {SQUAD_APPROVAL_THRESHOLD}명 이상이 승인하면 자동으로 확정돼요.
             {canEditSquad
               ? " 아래 선수 아이콘을 드래그해서 다른 자리와 맞바꿀 수 있어요."
