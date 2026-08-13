@@ -597,11 +597,11 @@ function PositionPitch({
             // 버린다 — 편집 화면에서만 살짝 오프셋을 줘서 둘 다 따로 잡을
             // 수 있게 한다(저장되는 실제 위치·최종 미리보기는 그대로 정확한
             // 좌표를 쓴다).
-            left: `calc(${entityPos("ball").x}% + 10px)`,
-            top: `calc(${entityPos("ball").y}% - 10px)`,
+            left: `calc(${entityPos("ball").x}% + 8px)`,
+            top: `calc(${entityPos("ball").y}% - 8px)`,
             touchAction: "none",
           }}
-          className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-white shadow ring-2 ring-zinc-400 active:cursor-grabbing ${dragId === "ball" ? "z-10 scale-125" : ""}`}
+          className={`absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-white shadow ring-1 ring-zinc-400 active:cursor-grabbing ${dragId === "ball" ? "z-10 scale-150" : ""}`}
         />
       )}
     </div>
