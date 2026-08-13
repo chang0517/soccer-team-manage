@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import TacticsBoard from "@/components/TacticsBoard";
@@ -406,44 +407,18 @@ export default function TacticsEditPage() {
             onChange={(e) => setStep({ note: e.target.value })}
           />
 
-          <p className="mb-1.5 text-xs font-bold text-zinc-400">위치</p>
-          <div className="mb-3 space-y-1.5">
-            {players.map((p) => (
-              <div key={p.id} className="flex items-center gap-2 text-sm">
-                <span className="w-20 shrink-0 truncate text-zinc-500">{p.label}</span>
-                <select
-                  className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5"
-                  value={step.positions[p.id] ?? DEFAULT_ZONE}
-                  onChange={(e) =>
-                    setStep({ positions: { ...step.positions, [p.id]: e.target.value } })
-                  }
-                >
-                  {ZONE_OPTIONS.map((z) => (
-                    <option key={z.code} value={z.code}>
-                      {z.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-            {hasBall && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="w-20 shrink-0 text-zinc-500">⚽ 공</span>
-                <select
-                  className="flex-1 rounded-lg border border-zinc-300 bg-white px-2 py-1.5"
-                  value={step.positions.ball ?? DEFAULT_ZONE}
-                  onChange={(e) =>
-                    setStep({ positions: { ...step.positions, ball: e.target.value } })
-                  }
-                >
-                  {ZONE_OPTIONS.map((z) => (
-                    <option key={z.code} value={z.code}>
-                      {z.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+          <p className="mb-1.5 text-xs font-bold text-zinc-400">
+            위치 — 선수나 공을 드래그해서 옮기세요
+          </p>
+          <div className="mb-3">
+            <PositionPitch
+              players={players}
+              hasBall={hasBall}
+              positions={step.positions}
+              onMove={(id, zone) =>
+                setStep({ positions: { ...step.positions, [id]: zone } })
+              }
+            />
           </div>
 
           <p className="mb-1.5 text-xs font-bold text-zinc-400">화살표</p>
@@ -486,6 +461,150 @@ export default function TacticsEditPage() {
         {saving ? "저장 중…" : "저장하고 전술 시뮬레이터에서 보기"}
       </button>
     </main>
+  );
+}
+
+const TEAM_STYLE: Record<"A" | "B", string> = {
+  A: "bg-blue-600 text-white",
+  B: "bg-rose-500 text-white",
+};
+
+/** 드래그를 놓은 좌표(%)에서 가장 가까운 구역 코드를 찾는다 — 자유 좌표가
+ * 아니라 항상 18개 구역(15개 필드 + 골대 안 3개) 중 하나로 스냅시켜서,
+ * LLM 경로와 마찬가지로 데이터가 항상 구역 코드 기반으로 깔끔하게 유지된다. */
+function pointToPercent(rect: DOMRect, clientX: number, clientY: number) {
+  const x = ((clientX - rect.left) / rect.width) * 100;
+  const y = ((clientY - rect.top) / rect.height) * 100;
+  return { x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)) };
+}
+
+function nearestZone(x: number, y: number): string {
+  let best = DEFAULT_ZONE;
+  let bestDist = Infinity;
+  for (const [code, z] of Object.entries(PITCH_ZONES)) {
+    const d = (z.x - x) ** 2 + (z.y - y) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = code;
+    }
+  }
+  return best;
+}
+
+/** 선수/공 토큰을 손가락(또는 마우스)으로 직접 끌어서 옮기는 미니 전술판.
+ * 드래그 중에는 포인터를 그대로 따라가다가, 손을 떼는 순간 가장 가까운
+ * 구역으로 스냅한다. Pointer Events를 쓰는 이유는 마우스·터치·펜을 같은
+ * 코드로 다 처리해서 모바일에서도 그대로 동작하기 때문이다(이 앱의 기존
+ * 스쿼드 드래그는 HTML5 네이티브 DnD라 터치에서는 잘 안 먹는다). */
+function PositionPitch({
+  players,
+  hasBall,
+  positions,
+  onMove,
+}: {
+  players: DraftPlayer[];
+  hasBall: boolean;
+  positions: Record<string, string>;
+  onMove: (id: string, zone: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+
+  // JSX에서 onPointerDown={startDrag(id)}처럼 렌더 중에 함수를 즉시 호출해서
+  // 핸들러를 만드는 방식은 리액트 컴파일러 lint가 "렌더 중 ref 접근"으로
+  // 오탐하므로, id를 data 속성으로 읽는 단일 안정 핸들러를 쓴다.
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const id = e.currentTarget.dataset.dragId;
+    if (!id) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragId(id);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) setDragPos(pointToPercent(rect, e.clientX, e.clientY));
+  };
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragId) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) setDragPos(pointToPercent(rect, e.clientX, e.clientY));
+  };
+
+  const endDrag = () => {
+    if (dragId && dragPos) onMove(dragId, nearestZone(dragPos.x, dragPos.y));
+    setDragId(null);
+    setDragPos(null);
+  };
+
+  const entityPos = (id: string) => {
+    if (dragId === id && dragPos) return dragPos;
+    return PITCH_ZONES[positions[id]] ?? PITCH_ZONES[DEFAULT_ZONE];
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      className="relative mx-auto w-full max-w-xs overflow-hidden rounded-2xl bg-blue-700"
+      style={{ aspectRatio: "2 / 3" }}
+    >
+      <div className="absolute inset-3 rounded-xl border-2 border-blue-300/50" />
+      <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-blue-300/50" />
+      <div className="absolute left-3 right-3 top-1/2 border-t-2 border-blue-300/50" />
+      <div className="absolute left-1/2 top-3 h-2 w-14 -translate-x-1/2 border-2 border-t-0 border-blue-300/50" />
+      <div className="absolute bottom-3 left-1/2 h-2 w-14 -translate-x-1/2 border-2 border-b-0 border-blue-300/50" />
+
+      {Object.values(PITCH_ZONES).map((z, i) => (
+        <div
+          key={i}
+          className="pointer-events-none absolute h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30"
+          style={{ left: `${z.x}%`, top: `${z.y}%` }}
+        />
+      ))}
+
+      {players.map((p) => {
+        const pos = entityPos(p.id);
+        return (
+          <div
+            key={p.id}
+            className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
+            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+          >
+            <div
+              data-drag-id={p.id}
+              onPointerDown={handlePointerDown}
+              style={{ touchAction: "none" }}
+              className={`mx-auto flex h-8 w-8 cursor-grab items-center justify-center rounded-full text-[10px] font-bold shadow active:cursor-grabbing ${TEAM_STYLE[p.team]} ${dragId === p.id ? "z-10 scale-110 ring-2 ring-white" : ""}`}
+            >
+              {p.label.slice(0, 2)}
+            </div>
+            <p className="mt-0.5 max-w-14 truncate rounded bg-blue-950/60 px-1 text-[9px] font-semibold text-white">
+              {p.label}
+            </p>
+          </div>
+        );
+      })}
+
+      {hasBall && (
+        <div
+          data-drag-id="ball"
+          onPointerDown={handlePointerDown}
+          style={{
+            // 공이 선수와 같은 구역(선수가 공을 갖고 있는 상태)이면 두 토큰이
+            // 정확히 겹쳐서 공이 항상 위에서 선수 토큰의 드래그를 가로채
+            // 버린다 — 편집 화면에서만 살짝 오프셋을 줘서 둘 다 따로 잡을
+            // 수 있게 한다(저장되는 실제 위치·최종 미리보기는 그대로 정확한
+            // 좌표를 쓴다).
+            left: `calc(${entityPos("ball").x}% + 10px)`,
+            top: `calc(${entityPos("ball").y}% - 10px)`,
+            touchAction: "none",
+          }}
+          className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-white shadow ring-2 ring-zinc-400 active:cursor-grabbing ${dragId === "ball" ? "z-10 scale-125" : ""}`}
+        />
+      )}
+    </div>
   );
 }
 
