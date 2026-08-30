@@ -1,6 +1,5 @@
 import { getSessionUser } from "@/lib/auth";
 import { getEvent, getVotes, setVote } from "@/lib/db";
-import { daysUntil } from "@/lib/format";
 import { isVotingClosed } from "@/lib/rules";
 
 export async function POST(
@@ -29,7 +28,7 @@ export async function POST(
     if (!event) return Response.json({ error: "not found" }, { status: 404 });
     const votes = await getVotes(eventId);
     const attendCount = votes.filter((v) => v.status === "attend").length;
-    if (isVotingClosed(daysUntil(event.date), attendCount)) {
+    if (isVotingClosed(attendCount)) {
       return Response.json(
         {
           error:

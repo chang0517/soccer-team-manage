@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import TimePicker from "@/components/TimePicker";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
-import { formatDate, dDayLabel, daysUntil } from "@/lib/format";
+import { formatDate, dDayLabel } from "@/lib/format";
 import { WEATHER_EMOJI } from "@/lib/weather";
 import type { MatchWeather } from "@/lib/weather";
 import { ATTEND_CAP, isVotingClosed } from "@/lib/rules";
@@ -196,7 +196,7 @@ export default function EventDetailPage({
   );
   const statusOf = (memberId: number): VoteStatus | null =>
     votes.find((v) => v.memberId === memberId)?.status ?? null;
-  const voteClosed = isVotingClosed(daysUntil(event.date), counts.attend);
+  const voteClosed = isVotingClosed(counts.attend);
   // 내전(자체 2팀 스크리미지) 모드: scrimmageSquad가 있으면 squad=A팀,
   // scrimmageSquad=B팀으로 취급하고, 탭으로 어느 팀을 보고/편집 중인지 고른다.
   const isScrimmage = !!event.scrimmageSquad;
@@ -974,8 +974,7 @@ export default function EventDetailPage({
         <h2 className="mb-3 text-base font-bold">참석 투표</h2>
         {voteClosed && (
           <p className="mb-3 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-600">
-            투표가 마감됐어요 ({counts.attend >= ATTEND_CAP ? `참석 ${ATTEND_CAP}명 도달` : "경기 3일 전 마감"}
-            ). 참석하고 싶으면 아래 댓글로 남겨 주세요.
+            투표가 마감됐어요 (참석 {ATTEND_CAP}명 도달). 참석하고 싶으면 아래 댓글로 남겨 주세요.
           </p>
         )}
         <VoteButtons
