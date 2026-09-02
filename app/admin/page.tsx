@@ -33,13 +33,16 @@ function initialDraft(u: AppUser): ApprovalDraft {
 export default function AdminPage() {
   const { user, loading } = useSession();
   const [pending, setPending] = useState<AppUser[]>([]);
+  const [unlinked, setUnlinked] = useState<AppUser[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [drafts, setDrafts] = useState<Record<number, ApprovalDraft>>({});
+  const [linkPicks, setLinkPicks] = useState<Record<number, string>>({});
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const load = async () => {
-    const [p, m] = await Promise.all([
+    const [p, u, m] = await Promise.all([
       fetch("/api/admin/pending-users").then((r) => r.json()),
+      fetch("/api/admin/unlinked-users").then((r) => r.json()),
       fetch("/api/members").then((r) => r.json()),
     ]);
     if (Array.isArray(p)) {
@@ -52,6 +55,7 @@ export default function AdminPage() {
         return next;
       });
     }
+    if (Array.isArray(u)) setUnlinked(u);
     setMembers(m);
   };
 
@@ -126,6 +130,25 @@ export default function AdminPage() {
     load();
   };
 
+  const linkMember = async (u: AppUser) => {
+    const memberId = linkPicks[u.id];
+    if (!memberId) return;
+    setBusyId(u.id);
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve", memberId: Number(memberId) }),
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "연결에 실패했어요. 다시 시도해 주세요.");
+      return;
+    }
+    setLinkPicks((p) => ({ ...p, [u.id]: "" }));
+    load();
+  };
+
   const input = "rounded-xl border border-zinc-300 bg-white px-2 py-1.5 text-sm";
 
   return (
@@ -148,6 +171,53 @@ export default function AdminPage() {
         가입 신청자가 실제 팀원인지 이름을 보고 확인한 다음, 기존 멤버와
         연결하거나 새 멤버로 등록해 승인하세요.
       </p>
+
+      {unlinked.length > 0 && (
+        <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-bold text-amber-800">
+            멤버 연결이 안 된 승인 계정 ({unlinked.length}명)
+          </p>
+          <p className="text-xs text-amber-700">
+            승인 때 “나중에 연결”로 남겨둔 계정이에요. 로그인은 되지만
+            투표·기록 같은 기능은 멤버와 연결돼야 쓸 수 있어요.
+          </p>
+          <div className="space-y-2">
+            {unlinked.map((u) => (
+              <div
+                key={u.id}
+                className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3"
+              >
+                <span className="text-sm font-semibold">
+                  {u.displayName}{" "}
+                  <span className="font-normal text-zinc-400">@{u.username}</span>
+                </span>
+                <select
+                  className={`${input} min-w-0 flex-1`}
+                  value={linkPicks[u.id] ?? ""}
+                  onChange={(e) =>
+                    setLinkPicks((p) => ({ ...p, [u.id]: e.target.value }))
+                  }
+                >
+                  <option value="">멤버 선택</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.backNo != null ? ` #${m.backNo}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => linkMember(u)}
+                  disabled={busyId === u.id || !linkPicks[u.id]}
+                  className="shrink-0 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  연결
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pending.length === 0 && (
         <p className="rounded-2xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-400">
