@@ -95,24 +95,34 @@ export default function AdminPage() {
             },
             role: draft.role,
           };
-    await fetch(`/api/admin/users/${u.id}`, {
+    const res = await fetch(`/api/admin/users/${u.id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     setBusyId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "승인에 실패했어요. 다시 시도해 주세요.");
+      return;
+    }
     load();
   };
 
   const reject = async (u: AppUser) => {
     if (!confirm(`${u.displayName}(${u.username}) 가입을 거절할까요?`)) return;
     setBusyId(u.id);
-    await fetch(`/api/admin/users/${u.id}`, {
+    const res = await fetch(`/api/admin/users/${u.id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reject" }),
     });
     setBusyId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error ?? "거절 처리에 실패했어요. 다시 시도해 주세요.");
+      return;
+    }
     load();
   };
 
