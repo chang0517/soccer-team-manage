@@ -37,8 +37,7 @@ export default function HomePage() {
 
   const upcoming = events
     .filter((e) => e.date >= todayStr())
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 3);
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const loadVotes = useCallback(async (eventIds: number[]) => {
     if (eventIds.length === 0) {
@@ -73,7 +72,6 @@ export default function HomePage() {
         const ids = evs
           .filter((e) => e.date >= todayStr())
           .sort((a, b) => a.date.localeCompare(b.date))
-          .slice(0, 3)
           .map((e) => e.id);
         loadVotes(ids);
         loadWeather(ids);
