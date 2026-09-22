@@ -4,10 +4,12 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import KitColorPicker from "@/components/KitColorPicker";
 import TimePicker from "@/components/TimePicker";
 import VoteButtons from "@/components/VoteButtons";
 import { useSession } from "@/components/useSession";
 import { formatDate, dDayLabel } from "@/lib/format";
+import { findRememberedKitColor, KIT_COLOR_OPTIONS } from "@/lib/kitColors";
 import { WEATHER_EMOJI } from "@/lib/weather";
 import type { MatchWeather } from "@/lib/weather";
 import { ATTEND_CAP, isVotingClosed } from "@/lib/rules";
@@ -98,10 +100,12 @@ export default function EventDetailPage({
     title: "",
     type: "match" as "match" | "social",
     opponent: "",
+    opponentKitColor: "",
     date: "",
     time: "08:00",
     location: "",
   });
+  const [allEvents, setAllEvents] = useState<EventItem[]>([]);
   const [notifying, setNotifying] = useState(false);
   const [notifyResult, setNotifyResult] = useState("");
 
@@ -751,12 +755,23 @@ export default function EventDetailPage({
       title: event.title,
       type: event.type,
       opponent: event.opponent,
+      opponentKitColor: event.opponentKitColor,
       date: event.date,
       time: event.time,
       location: event.location,
     });
     setEditingInfo(true);
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then(setAllEvents)
+      .catch(() => setAllEvents([]));
   };
+
+  const rememberedKitColor = findRememberedKitColor(
+    allEvents,
+    infoForm.opponent,
+    event.id
+  );
 
   const saveInfo = async () => {
     if (!infoForm.title.trim() || !infoForm.date) return;
@@ -895,6 +910,15 @@ export default function EventDetailPage({
                   onChange={(e) => setInfoForm({ ...infoForm, opponent: e.target.value })}
                 />
               </div>
+              <div className="col-span-2">
+                <KitColorPicker
+                  value={infoForm.opponentKitColor}
+                  onChange={(opponentKitColor) =>
+                    setInfoForm({ ...infoForm, opponentKitColor })
+                  }
+                  remembered={rememberedKitColor}
+                />
+              </div>
               <div>
                 <label className="text-xs font-semibold text-zinc-500">날짜</label>
                 <input
@@ -941,7 +965,21 @@ export default function EventDetailPage({
             <h1 className="mt-2 text-lg font-bold">
               {event.title}
               {event.opponent && (
-                <span className="text-zinc-600"> vs {event.opponent}</span>
+                <span className="text-zinc-600">
+                  {" "}
+                  vs {event.opponent}
+                  {event.opponentKitColor && (
+                    <span
+                      title={`상대팀 유니폼: ${event.opponentKitColor}`}
+                      className="ml-1 inline-block h-3 w-3 rounded-full border border-zinc-300 align-middle"
+                      style={{
+                        backgroundColor:
+                          KIT_COLOR_OPTIONS.find((c) => c.name === event.opponentKitColor)
+                            ?.hex ?? "#d4d4d8",
+                      }}
+                    />
+                  )}
+                </span>
               )}
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
@@ -1241,7 +1279,7 @@ export default function EventDetailPage({
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold">스쿼드 (4-1-2-2-1)</h2>
               {isSquadLocked && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                <span className="rounded-full bg-emerald-600 px-3 py-1 text-sm font-extrabold text-white shadow-sm">
                   🔒 확정된 스쿼드
                 </span>
               )}

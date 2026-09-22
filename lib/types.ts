@@ -140,6 +140,9 @@ export interface EventItem {
   time: string;
   location: string;
   opponent: string;
+  // 상대팀 유니폼 색깔(자유 텍스트). 같은 이름의 상대팀으로 다음에 또 경기를
+  // 잡으면 지난 기록에서 자동으로 불러와 보여준다 (lib/kitColors.ts 참고).
+  opponentKitColor: string;
   scored: number | null;
   conceded: number | null;
   squad: SquadData | null;

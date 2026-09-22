@@ -70,6 +70,7 @@ async function init() {
       time TEXT NOT NULL DEFAULT '',
       location TEXT NOT NULL DEFAULT '',
       opponent TEXT NOT NULL DEFAULT '',
+      opponent_kit_color TEXT NOT NULL DEFAULT '',
       scored INTEGER,
       conceded INTEGER,
       squad JSONB,
@@ -221,6 +222,9 @@ async function init() {
   );
   await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS scrimmage_squad JSONB");
   await pool.query(
+    "ALTER TABLE events ADD COLUMN IF NOT EXISTS opponent_kit_color TEXT NOT NULL DEFAULT ''"
+  );
+  await pool.query(
     "ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER"
   );
   await pool.query(
@@ -319,6 +323,7 @@ type EventDbRow = {
   time: string;
   location: string;
   opponent: string;
+  opponent_kit_color: string;
   scored: number | null;
   conceded: number | null;
   squad: SquadData | null;
@@ -341,6 +346,7 @@ function toEvent(r: EventDbRow): EventItem {
     time: r.time,
     location: r.location,
     opponent: r.opponent,
+    opponentKitColor: r.opponent_kit_color ?? "",
     scored: r.scored,
     conceded: r.conceded,
     squad: r.squad,
@@ -377,7 +383,7 @@ export async function createEvent(
 ): Promise<EventItem> {
   const pool = await ready();
   const { rows } = await pool.query(
-    "INSERT INTO events (title, type, date, time, location, opponent, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
+    "INSERT INTO events (title, type, date, time, location, opponent, opponent_kit_color, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
     [
       e.title,
       e.type,
@@ -385,6 +391,7 @@ export async function createEvent(
       e.time,
       e.location,
       e.opponent,
+      e.opponentKitColor ?? "",
       e.notes,
       e.dutyOffense ?? "",
       e.dutyDefense ?? "",
@@ -401,7 +408,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   const pool = await ready();
   await pool.query(
-    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, scored=$7, conceded=$8, squad=$9, scrimmage_squad=$10, notes=$11, duty_offense=$12, duty_defense=$13, water_duty=$14, icebox_duty=$15, record_log=$16, equipment_reminder_sent=$17 WHERE id=$18",
+    "UPDATE events SET title=$1, type=$2, date=$3, time=$4, location=$5, opponent=$6, opponent_kit_color=$7, scored=$8, conceded=$9, squad=$10, scrimmage_squad=$11, notes=$12, duty_offense=$13, duty_defense=$14, water_duty=$15, icebox_duty=$16, record_log=$17, equipment_reminder_sent=$18 WHERE id=$19",
     [
       next.title,
       next.type,
@@ -409,6 +416,7 @@ export async function updateEvent(id: number, patch: Partial<EventItem>) {
       next.time,
       next.location,
       next.opponent,
+      next.opponentKitColor ?? "",
       next.scored,
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,

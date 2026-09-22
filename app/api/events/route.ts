@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     time: body.time ?? "",
     location: body.location ?? "",
     opponent: body.opponent ?? "",
+    opponentKitColor: body.opponentKitColor ?? "",
     notes: body.notes ?? "",
     dutyOffense: body.dutyOffense ?? "",
     dutyDefense: body.dutyDefense ?? "",

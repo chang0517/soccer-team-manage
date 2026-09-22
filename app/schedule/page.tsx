@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import KitColorPicker from "@/components/KitColorPicker";
 import MonthCalendar from "@/components/MonthCalendar";
 import TimePicker from "@/components/TimePicker";
 import { useSession } from "@/components/useSession";
 import { dDayLabel, formatDate, todayStr } from "@/lib/format";
+import { findRememberedKitColor, KIT_COLOR_OPTIONS } from "@/lib/kitColors";
 import type { EventItem } from "@/lib/types";
 
 const EMPTY_FORM = {
@@ -15,6 +17,7 @@ const EMPTY_FORM = {
   time: "08:00",
   location: "",
   opponent: "",
+  opponentKitColor: "",
 };
 
 export default function SchedulePage() {
@@ -36,6 +39,8 @@ export default function SchedulePage() {
     .filter((e) => e.date >= todayStr())
     .sort((a, b) => a.date.localeCompare(b.date));
   const past = events.filter((e) => e.date < todayStr());
+
+  const rememberedKitColor = findRememberedKitColor(events, form.opponent);
 
   const submit = async () => {
     if (!form.title.trim() || !form.date) return;
@@ -74,7 +79,21 @@ export default function SchedulePage() {
         <p className="truncate font-semibold">
           {e.title}
           {e.opponent && (
-            <span className="font-normal text-zinc-500"> vs {e.opponent}</span>
+            <span className="font-normal text-zinc-500">
+              {" "}
+              vs {e.opponent}
+              {e.opponentKitColor && (
+                <span
+                  title={`상대팀 유니폼: ${e.opponentKitColor}`}
+                  className="ml-1 inline-block h-2.5 w-2.5 rounded-full border border-zinc-300 align-middle"
+                  style={{
+                    backgroundColor:
+                      KIT_COLOR_OPTIONS.find((c) => c.name === e.opponentKitColor)?.hex ??
+                      "#d4d4d8",
+                  }}
+                />
+              )}
+            </span>
           )}
         </p>
         <p className="text-xs text-zinc-500">
@@ -141,6 +160,13 @@ export default function SchedulePage() {
                 placeholder="경기일 때만"
                 value={form.opponent}
                 onChange={(e) => setForm({ ...form, opponent: e.target.value })}
+              />
+            </div>
+            <div className="col-span-2">
+              <KitColorPicker
+                value={form.opponentKitColor}
+                onChange={(opponentKitColor) => setForm({ ...form, opponentKitColor })}
+                remembered={rememberedKitColor}
               />
             </div>
             <div>

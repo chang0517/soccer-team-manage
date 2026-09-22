@@ -54,6 +54,7 @@ function createDb(): Database.Database {
       time TEXT NOT NULL DEFAULT '',
       location TEXT NOT NULL DEFAULT '',
       opponent TEXT NOT NULL DEFAULT '',
+      opponent_kit_color TEXT NOT NULL DEFAULT '',
       scored INTEGER,
       conceded INTEGER,
       squad TEXT,
@@ -211,6 +212,9 @@ function createDb(): Database.Database {
   if (!eventCols.some((c) => c.name === "scrimmage_squad")) {
     db.exec("ALTER TABLE events ADD COLUMN scrimmage_squad TEXT");
   }
+  if (!eventCols.some((c) => c.name === "opponent_kit_color")) {
+    db.exec("ALTER TABLE events ADD COLUMN opponent_kit_color TEXT NOT NULL DEFAULT ''");
+  }
   const hofCols = db.prepare("PRAGMA table_info(hall_of_fame)").all() as { name: string }[];
   if (hofCols.length > 0 && !hofCols.some((c) => c.name === "clean_sheet_first_id")) {
     db.exec("ALTER TABLE hall_of_fame ADD COLUMN clean_sheet_first_id INTEGER");
@@ -346,6 +350,7 @@ type EventDbRow = {
   time: string;
   location: string;
   opponent: string;
+  opponent_kit_color: string;
   scored: number | null;
   conceded: number | null;
   squad: string | null;
@@ -368,6 +373,7 @@ function toEvent(r: EventDbRow): EventItem {
     time: r.time,
     location: r.location,
     opponent: r.opponent,
+    opponentKitColor: r.opponent_kit_color ?? "",
     scored: r.scored,
     conceded: r.conceded,
     squad: r.squad ? (JSON.parse(r.squad) as SquadData) : null,
@@ -404,7 +410,7 @@ export function createEvent(
 ): EventItem {
   const r = getDb()
     .prepare(
-      "INSERT INTO events (title, type, date, time, location, opponent, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO events (title, type, date, time, location, opponent, opponent_kit_color, notes, duty_offense, duty_defense, water_duty, icebox_duty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .run(
       e.title,
@@ -413,6 +419,7 @@ export function createEvent(
       e.time,
       e.location,
       e.opponent,
+      e.opponentKitColor ?? "",
       e.notes,
       e.dutyOffense ?? "",
       e.dutyDefense ?? "",
@@ -428,7 +435,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
   const next = { ...cur, ...patch };
   getDb()
     .prepare(
-      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, scored=?, conceded=?, squad=?, scrimmage_squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=?, equipment_reminder_sent=? WHERE id=?"
+      "UPDATE events SET title=?, type=?, date=?, time=?, location=?, opponent=?, opponent_kit_color=?, scored=?, conceded=?, squad=?, scrimmage_squad=?, notes=?, duty_offense=?, duty_defense=?, water_duty=?, icebox_duty=?, record_log=?, equipment_reminder_sent=? WHERE id=?"
     )
     .run(
       next.title,
@@ -437,6 +444,7 @@ export function updateEvent(id: number, patch: Partial<EventItem>) {
       next.time,
       next.location,
       next.opponent,
+      next.opponentKitColor ?? "",
       next.scored,
       next.conceded,
       next.squad ? JSON.stringify(next.squad) : null,

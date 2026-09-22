@@ -74,6 +74,7 @@ const ADMIN_ONLY_FIELDS = [
   "time",
   "location",
   "opponent",
+  "opponentKitColor",
 ] as const;
 
 export async function PATCH(
