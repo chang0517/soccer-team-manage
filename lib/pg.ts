@@ -10,6 +10,7 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  OpponentKitRow,
   PhoneVerificationRow,
   Poll,
   PollOption,
@@ -152,6 +153,11 @@ async function init() {
       top_assist_id INTEGER,
       clean_sheet_first_id INTEGER,
       overall_first_id INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS opponent_kits (
+      team_name TEXT PRIMARY KEY,
+      color TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE TABLE IF NOT EXISTS push_subscriptions (
       id SERIAL PRIMARY KEY,
@@ -1067,6 +1073,27 @@ export async function upsertHallOfFame(
 export async function deleteHallOfFame(id: number) {
   const pool = await ready();
   await pool.query("DELETE FROM hall_of_fame WHERE id=$1", [id]);
+}
+
+// ---------- 상대팀 유니폼 색 기억 ----------
+export async function listOpponentKits(): Promise<OpponentKitRow[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM opponent_kits");
+  return rows.map((r) => ({
+    teamName: r.team_name,
+    color: r.color,
+    updatedAt: r.updated_at.toISOString(),
+  }));
+}
+
+export async function upsertOpponentKit(teamName: string, color: string) {
+  const pool = await ready();
+  await pool.query(
+    `INSERT INTO opponent_kits (team_name, color, updated_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (team_name) DO UPDATE SET color=EXCLUDED.color, updated_at=now()`,
+    [teamName, color]
+  );
 }
 
 // ---------- 웹 푸시 구독 ----------

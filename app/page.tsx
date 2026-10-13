@@ -8,7 +8,7 @@ import { dDayLabel, formatDate, todayStr } from "@/lib/format";
 import { currentSeason } from "@/lib/season";
 import { WEATHER_EMOJI } from "@/lib/weather";
 import type { MatchWeather } from "@/lib/weather";
-import type { EventItem, RankingRow, VoteRow, VoteStatus } from "@/lib/types";
+import type { EventItem, OpponentKitRow, RankingRow, VoteRow, VoteStatus } from "@/lib/types";
 
 const DUTY_FIELDS: { key: keyof DutyDraft; label: string }[] = [
   { key: "dutyOffense", label: "공가방1" },
@@ -24,6 +24,21 @@ interface DutyDraft {
   iceboxDuty: string;
 }
 
+// 상대팀 유니폼 색(hex)의 상대 휘도를 계산해서, 우리 팀은 밝은 색/어두운
+// 색 중 대비되는 쪽을 입으라고 추천한다(정확한 색상 매칭이 아니라
+// 단순 명암 대비 — 실제 보유한 유니폼 색을 다 알 수는 없어서 이 정도가
+// 실용적인 선에서 가장 안전한 기준).
+function recommendKit(hex: string): { label: string; swatch: string } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const luminance = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return luminance > 0.5
+    ? { label: "어두운(남색·검정 계열) 유니폼을 추천해요", swatch: "#18181b" }
+    : { label: "밝은(흰색 계열) 유니폼을 추천해요", swatch: "#fafafa" };
+}
+
 export default function HomePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
@@ -32,6 +47,9 @@ export default function HomePage() {
   const [noteDrafts, setNoteDrafts] = useState<Record<number, DutyDraft>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [noteSavingId, setNoteSavingId] = useState<number | null>(null);
+  const [opponentKits, setOpponentKits] = useState<Record<string, string>>({});
+  const [kitDrafts, setKitDrafts] = useState<Record<string, string>>({});
+  const [kitSavingTeam, setKitSavingTeam] = useState<string | null>(null);
   const { user } = useSession();
   const myId = user?.memberId ?? null;
 
@@ -65,6 +83,11 @@ export default function HomePage() {
 
   useEffect(() => {
     fetch(`/api/ranking?season=${currentSeason()}`).then((r) => r.json()).then(setRanking);
+    fetch("/api/opponent-kits")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((kits: OpponentKitRow[]) =>
+        setOpponentKits(Object.fromEntries(kits.map((k) => [k.teamName, k.color])))
+      );
     fetch("/api/events")
       .then((r) => r.json())
       .then((evs: EventItem[]) => {
@@ -109,6 +132,19 @@ export default function HomePage() {
     });
     setNoteSavingId(null);
     setEditingId(null);
+  };
+
+  const saveKit = async (teamName: string) => {
+    const color = kitDrafts[teamName];
+    if (!color) return;
+    setKitSavingTeam(teamName);
+    await fetch("/api/opponent-kits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamName, color }),
+    });
+    setOpponentKits((prev) => ({ ...prev, [teamName]: color }));
+    setKitSavingTeam(null);
   };
 
   const vote = async (eventId: number, status: VoteStatus) => {
@@ -213,6 +249,57 @@ export default function HomePage() {
                   </p>
                 )}
               </div>
+              {e.opponent &&
+                (() => {
+                  const teamName = e.opponent.trim();
+                  const knownColor = opponentKits[teamName];
+                  return (
+                    <div className="mt-3 border-t border-zinc-100 pt-3">
+                      <span className="text-xs font-semibold text-zinc-500">
+                        상대팀 유니폼
+                      </span>
+                      {knownColor ? (
+                        <div className="mt-1.5 flex items-center gap-2 text-sm">
+                          <span
+                            className="h-4 w-4 shrink-0 rounded-full border border-zinc-300"
+                            style={{ backgroundColor: knownColor }}
+                          />
+                          <span className="text-zinc-600">{teamName}팀 기록된 색</span>
+                          <span className="text-zinc-400">·</span>
+                          <span className="flex items-center gap-1.5 font-semibold text-blue-700">
+                            <span
+                              className="h-4 w-4 shrink-0 rounded-full border border-zinc-300"
+                              style={{ backgroundColor: recommendKit(knownColor).swatch }}
+                            />
+                            {recommendKit(knownColor).label}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <input
+                            type="color"
+                            className="h-8 w-10 shrink-0 rounded border border-zinc-300"
+                            value={kitDrafts[teamName] ?? "#1e3a8a"}
+                            onChange={(ev) =>
+                              setKitDrafts((d) => ({ ...d, [teamName]: ev.target.value }))
+                            }
+                          />
+                          <p className="flex-1 text-xs text-zinc-400">
+                            {teamName}팀 유니폼 색을 처음 기록해 두면, 다음에 또 만났을 때
+                            자동으로 알려드려요.
+                          </p>
+                          <button
+                            onClick={() => saveKit(teamName)}
+                            disabled={kitSavingTeam === teamName}
+                            className="shrink-0 rounded-lg bg-blue-700 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                          >
+                            {kitSavingTeam === teamName ? "저장 중…" : "저장"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               <div className="mt-3 border-t border-zinc-100 pt-3">
                 <div className="mb-1.5 flex items-center justify-between">
                   <span className="text-xs font-semibold text-zinc-500">비고</span>

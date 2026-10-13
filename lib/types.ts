@@ -250,6 +250,16 @@ export interface HallOfFameRow {
   overallFirstId: number | null;
 }
 
+// 상대팀 유니폼 색깔 기억 — 한 번 기록해두면 같은 상대팀과 다시 경기가
+// 잡혔을 때 자동으로 불러온다. 색은 <input type="color">로 받은 hex
+// 그대로 저장하고, 우리 팀 추천 색은 저장하지 않고 매번 그 hex의 밝기로
+// 계산한다(간단한 밝은/어두운 대비 추천이라 고정값으로 둘 이유가 없음).
+export interface OpponentKitRow {
+  teamName: string;
+  color: string;
+  updatedAt: string;
+}
+
 // 이벤트 투표(월드컵 우승팀 예측 등 자유 주제 투표). 로그인한 회원이면
 // 누구나 만들 수 있고, 보기는 복수 선택이 가능하며 결과는 항상 실시간 공개된다.
 export interface Poll {

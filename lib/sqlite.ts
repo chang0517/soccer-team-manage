@@ -12,6 +12,7 @@ import type {
   HistoricalStats,
   Member,
   MvpVoteRow,
+  OpponentKitRow,
   PhoneVerificationRow,
   Poll,
   PollOption,
@@ -136,6 +137,11 @@ function createDb(): Database.Database {
       top_assist_id INTEGER,
       clean_sheet_first_id INTEGER,
       overall_first_id INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS opponent_kits (
+      team_name TEXT PRIMARY KEY,
+      color TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS push_subscriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1094,6 +1100,28 @@ export function upsertHallOfFame(
 
 export function deleteHallOfFame(id: number) {
   getDb().prepare("DELETE FROM hall_of_fame WHERE id=?").run(id);
+}
+
+// ---------- 상대팀 유니폼 색 기억 ----------
+export function listOpponentKits(): OpponentKitRow[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM opponent_kits")
+    .all() as { team_name: string; color: string; updated_at: string }[];
+  return rows.map((r) => ({
+    teamName: r.team_name,
+    color: r.color,
+    updatedAt: r.updated_at,
+  }));
+}
+
+export function upsertOpponentKit(teamName: string, color: string) {
+  const now = new Date().toISOString();
+  getDb()
+    .prepare(
+      `INSERT INTO opponent_kits (team_name, color, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(team_name) DO UPDATE SET color=excluded.color, updated_at=excluded.updated_at`
+    )
+    .run(teamName, color, now);
 }
 
 // ---------- 웹 푸시 구독 ----------
