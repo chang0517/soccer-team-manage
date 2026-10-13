@@ -219,8 +219,11 @@ export interface HistoricalStats {
 // "coach_feedback"은 게시판 안의 별도 하위 페이지(코치 피드백)에 실리는
 // 글이고, feedbackDate는 그 피드백이 해당하는 날짜(작성일이 아니라 훈련/
 // 경기가 있었던 날짜)로 그 하위 페이지에서 날짜별로 묶어서 보여줄 때 쓴다.
-// "notice"(일반 공지)에서는 항상 null.
-export type AnnouncementCategory = "notice" | "coach_feedback";
+// "training"도 같은 식으로 게시판 안의 별도 하위 페이지(훈련 세션)에
+// 실리는데, body에 일반 텍스트가 아니라 훈련 세션용 HTML 전체를 그대로
+// 저장해서 상세 페이지에서 샌드박스 iframe으로 렌더링한다.
+// "notice"(일반 공지)에서는 feedbackDate가 항상 null.
+export type AnnouncementCategory = "notice" | "coach_feedback" | "training";
 
 export interface AnnouncementRow {
   id: number;

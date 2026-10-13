@@ -43,7 +43,7 @@ export default function NoticeListPage() {
   };
 
   const input = "w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm";
-  const notices = items.filter((a) => a.category !== "coach_feedback");
+  const notices = items.filter((a) => a.category === "notice");
 
   return (
     <div className="space-y-4">
@@ -63,6 +63,12 @@ export default function NoticeListPage() {
         className="block rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700"
       >
         🗣️ 코치 피드백 보기 →
+      </Link>
+      <Link
+        href="/notice/training"
+        className="block rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700"
+      >
+        🏋️ 훈련 세션 보기 →
       </Link>
 
       {showForm && (

@@ -13,13 +13,20 @@ export async function POST(request: Request) {
   const body = await request.json();
   const title = String(body?.title ?? "").trim();
   const text = String(body?.body ?? "").trim();
-  const category = body?.category === "coach_feedback" ? "coach_feedback" : "notice";
+  const category =
+    body?.category === "coach_feedback"
+      ? "coach_feedback"
+      : body?.category === "training"
+        ? "training"
+        : "notice";
   const feedbackDate =
-    category === "coach_feedback" ? String(body?.feedbackDate ?? "").trim() || null : null;
+    category === "coach_feedback" || category === "training"
+      ? String(body?.feedbackDate ?? "").trim() || null
+      : null;
   if (!title || !text) {
     return Response.json({ error: "제목과 내용을 입력해 주세요." }, { status: 400 });
   }
-  if (category === "coach_feedback" && !feedbackDate) {
+  if ((category === "coach_feedback" || category === "training") && !feedbackDate) {
     return Response.json({ error: "날짜를 선택해 주세요." }, { status: 400 });
   }
   const announcement = await createAnnouncement({

@@ -39,17 +39,21 @@ export default function NoticeDetailPage({
 
   const isAdmin = user?.role === "admin";
   const isCoachFeedback = item.category === "coach_feedback";
-  const backHref = isCoachFeedback ? "/notice/coach" : "/notice";
-  const backLabel = isCoachFeedback ? "← 코치 피드백 목록" : "← 게시판";
+  const isTraining = item.category === "training";
+  const hasDate = isCoachFeedback || isTraining;
+  const backHref = isCoachFeedback ? "/notice/coach" : isTraining ? "/notice/training" : "/notice";
+  const backLabel = isCoachFeedback
+    ? "← 코치 피드백 목록"
+    : isTraining
+      ? "← 훈련 세션 목록"
+      : "← 게시판";
 
   const save = async () => {
     setSaving(true);
     await fetch(`/api/announcements/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        isCoachFeedback ? { title, body, feedbackDate } : { title, body }
-      ),
+      body: JSON.stringify(hasDate ? { title, body, feedbackDate } : { title, body }),
     });
     setSaving(false);
     setEditing(false);
@@ -73,7 +77,7 @@ export default function NoticeDetailPage({
       <div className="rounded-2xl border border-zinc-200 bg-white p-4">
         {editing ? (
           <div className="space-y-3">
-            {isCoachFeedback && (
+            {hasDate && (
               <label className="block text-xs font-semibold text-zinc-500">
                 날짜
                 <input
@@ -86,8 +90,8 @@ export default function NoticeDetailPage({
             )}
             <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} />
             <textarea
-              className={`${input} resize-none`}
-              rows={8}
+              className={`${input} resize-none ${isTraining ? "font-mono text-xs" : ""}`}
+              rows={isTraining ? 16 : 8}
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
@@ -116,6 +120,11 @@ export default function NoticeDetailPage({
                     🗣️ 코치 피드백
                   </span>
                 )}
+                {isTraining && (
+                  <span className="mb-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                    🏋️ 훈련 세션
+                  </span>
+                )}
                 <h1 className="text-lg font-bold">{item.title}</h1>
               </div>
               {isAdmin && (
@@ -134,11 +143,20 @@ export default function NoticeDetailPage({
             </div>
             <p className="mt-1 text-xs text-zinc-400">
               {item.authorName} ·{" "}
-              {isCoachFeedback && item.feedbackDate
+              {hasDate && item.feedbackDate
                 ? new Date(`${item.feedbackDate}T00:00:00`).toLocaleDateString("ko-KR")
                 : new Date(item.createdAt).toLocaleString("ko-KR")}
             </p>
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p>
+            {isTraining ? (
+              <iframe
+                title={item.title}
+                srcDoc={item.body}
+                sandbox="allow-scripts allow-popups"
+                className="mt-4 h-[75vh] w-full rounded-xl border border-zinc-200"
+              />
+            ) : (
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p>
+            )}
           </>
         )}
       </div>
