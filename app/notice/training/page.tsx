@@ -28,6 +28,7 @@ export default function TrainingPage() {
   const [sessionDate, setSessionDate] = useState(todayStr());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
   const load = () =>
     fetch("/api/announcements").then((r) => r.json()).then(setItems);
@@ -72,7 +73,9 @@ export default function TrainingPage() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(a);
   }
-  const sortedDates = [...groups.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const sortedDates = [...groups.keys()].sort((a, b) =>
+    sortDir === "desc" ? (a < b ? 1 : -1) : a < b ? -1 : 1
+  );
 
   return (
     <div className="space-y-4">
@@ -90,6 +93,17 @@ export default function TrainingPage() {
           </button>
         )}
       </div>
+
+      {sessions.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+            className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-600"
+          >
+            {sortDir === "desc" ? "최신순 ▼" : "오래된순 ▲"}
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
