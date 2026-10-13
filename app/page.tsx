@@ -24,19 +24,34 @@ interface DutyDraft {
   iceboxDuty: string;
 }
 
-// 상대팀 유니폼 색(hex)의 상대 휘도를 계산해서, 우리 팀은 밝은 색/어두운
-// 색 중 대비되는 쪽을 입으라고 추천한다(정확한 색상 매칭이 아니라
-// 단순 명암 대비 — 실제 보유한 유니폼 색을 다 알 수는 없어서 이 정도가
-// 실용적인 선에서 가장 안전한 기준).
-function recommendKit(hex: string): { label: string; swatch: string } {
+// 우리 팀이 실제로 보유한 유니폼 두 벌 — 상대팀 색과 대비(WCAG 명암비)가
+// 더 큰 쪽을 추천한다. 정확한 색상은 나중에 실제 유니폼 색에 맞춰 바꾸면 됨.
+const OUR_KITS = [
+  { label: "하늘색 유니폼", hex: "#38bdf8" },
+  { label: "검정 유니폼", hex: "#111111" },
+];
+
+function luminance(hex: string): number {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
   const b = parseInt(hex.slice(5, 7), 16) / 255;
   const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  const luminance = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  return luminance > 0.5
-    ? { label: "어두운(남색·검정 계열) 유니폼을 추천해요", swatch: "#18181b" }
-    : { label: "밝은(흰색 계열) 유니폼을 추천해요", swatch: "#fafafa" };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrastRatio(hexA: string, hexB: string): number {
+  const l1 = luminance(hexA);
+  const l2 = luminance(hexB);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function recommendKit(opponentHex: string): { label: string; swatch: string } {
+  const best = OUR_KITS.reduce((a, b) =>
+    contrastRatio(opponentHex, b.hex) > contrastRatio(opponentHex, a.hex) ? b : a
+  );
+  return { label: `${best.label}을 추천해요`, swatch: best.hex };
 }
 
 export default function HomePage() {
