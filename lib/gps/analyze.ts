@@ -1,5 +1,6 @@
 import { autoFitFrame, projectToPitch } from "./geo";
 import type {
+  AreaShare,
   GpsPoint,
   Heatmap,
   PitchFrame,
@@ -7,6 +8,7 @@ import type {
   TrackMetrics,
   TrackPath,
   ZoneDistances,
+  ZoneSeconds,
 } from "./types";
 
 // 속도 구간·임계값은 팀 스포츠 GPS 분석에서 흔히 쓰는 값이다. 아마추어
@@ -221,7 +223,7 @@ function buildHeatmap(
   for (let i = 0; i < soft.length; i++) {
     bytes[i] = Math.max(0, Math.min(255, Math.round((soft[i] / ref) * 255)));
   }
-  return { cols, rows, cellM: 1, data: Buffer.from(bytes).toString("base64") };
+  return { cols, rows, cellM: 1, data: Buffer.from(bytes).toString("base64"), refS: ref };
 }
 
 /**
@@ -259,6 +261,7 @@ export function analyzeTrack(raw: GpsPoint[], frame: PitchFrame | null): TrackAn
 
   const cum = new Array<number>(n).fill(0); // 샘플 i까지의 누적 거리
   const zones: ZoneDistances = { walkM: 0, jogM: 0, runM: 0, hsrM: 0, sprintM: 0 };
+  const zonesS: ZoneSeconds = { walkS: 0, jogS: 0, runS: 0, hsrS: 0, sprintS: 0 };
   const durationS = (t[n - 1] - t0) / 1000;
   const perMinuteM = new Array<number>(Math.floor(durationS / 60) + 1).fill(0);
   let distanceM = 0;
@@ -276,11 +279,22 @@ export function analyzeTrack(raw: GpsPoint[], frame: PitchFrame | null): TrackAn
     distanceM += d;
     activeS += dt;
     perMinuteM[Math.floor((t[i] - t0) / 60000)] += d;
-    if (vm < T.jogSpeed) zones.walkM += d;
-    else if (vm < T.runSpeed) zones.jogM += d;
-    else if (vm < T.hsrSpeed) zones.runM += d;
-    else if (vm < T.sprintSpeed) zones.hsrM += d;
-    else zones.sprintM += d;
+    if (vm < T.jogSpeed) {
+      zones.walkM += d;
+      zonesS.walkS += dt;
+    } else if (vm < T.runSpeed) {
+      zones.jogM += d;
+      zonesS.jogS += dt;
+    } else if (vm < T.hsrSpeed) {
+      zones.runM += d;
+      zonesS.runS += dt;
+    } else if (vm < T.sprintSpeed) {
+      zones.hsrM += d;
+      zonesS.hsrS += dt;
+    } else {
+      zones.sprintM += d;
+      zonesS.sprintS += dt;
+    }
   }
   if (v[n - 1] > maxSpeedMs) maxSpeedMs = v[n - 1];
 
@@ -309,6 +323,8 @@ export function analyzeTrack(raw: GpsPoint[], frame: PitchFrame | null): TrackAn
   let wSum = 0;
   let ax = 0;
   let ay = 0;
+  const thirds: [number, number, number] = [0, 0, 0];
+  const lanes: [number, number, number] = [0, 0, 0];
   for (let i = 0; i < n - 1; i++) {
     const dtMs = t[i + 1] - t[i];
     if (dtMs > T.gapMs) continue;
@@ -316,7 +332,16 @@ export function analyzeTrack(raw: GpsPoint[], frame: PitchFrame | null): TrackAn
     wSum += dtMs;
     ax += x[i] * dtMs;
     ay += y[i] * dtMs;
+    thirds[Math.min(2, Math.floor((x[i] / fr.lengthM) * 3))] += dtMs;
+    lanes[Math.min(2, Math.floor((y[i] / fr.widthM) * 3))] += dtMs;
   }
+  const areaShare: AreaShare | null =
+    wSum > 0
+      ? {
+          thirds: [thirds[0] / wSum, thirds[1] / wSum, thirds[2] / wSum],
+          lanes: [lanes[0] / wSum, lanes[1] / wSum, lanes[2] / wSum],
+        }
+      : null;
 
   const metrics: TrackMetrics = {
     startedAt: t0,
@@ -327,6 +352,8 @@ export function analyzeTrack(raw: GpsPoint[], frame: PitchFrame | null): TrackAn
     avgSpeedMs: activeS > 0 ? distanceM / activeS : 0,
     maxSpeedMs,
     zones,
+    zonesS,
+    areaShare,
     sprintCount: sprints.length,
     sprintDistanceM,
     accelCount,

@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import GpsHeatmap from "@/components/GpsHeatmap";
 import GpsTeamMap from "@/components/GpsTeamMap";
+import GpsTeamPanel from "@/components/GpsTeamPanel";
 import GpsUpload from "@/components/GpsUpload";
 import { useSession } from "@/components/useSession";
+import { areaSummary, zoneBreakdown } from "@/lib/gps/zones";
 import type { GpsPitch, GpsSession, GpsTrackDetail, GpsTrackSummary, Member } from "@/lib/types";
 
 type TrackRow = GpsTrackSummary & { memberName: string | null };
@@ -43,6 +45,7 @@ export default function GpsSessionPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [track, setTrack] = useState<GpsTrackDetail | null>(null);
   const [showPath, setShowPath] = useState(false);
+  const [view, setView] = useState<"player" | "team">("player");
 
   // 변경 후 다시 불러오려고 숫자를 올린다(이펙트가 이 값에 반응).
   const [version, setVersion] = useState(0);
@@ -172,6 +175,38 @@ export default function GpsSessionPage() {
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-500">아직 올라온 로그가 없어요.</div>
       ) : (
         <>
+          <div className="flex gap-1 rounded-2xl bg-zinc-200/60 p-1">
+            {(
+              [
+                ["player", "선수별"],
+                ["team", "팀 비교"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                className={`flex-1 rounded-xl py-2 text-sm font-bold ${view === key ? "bg-white text-blue-900 shadow-sm" : "text-zinc-500"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {view === "team" && (
+            <>
+              <GpsTeamPanel sessionId={session.id} refreshKey={version} />
+              {dots.length >= 2 && pitch && (
+                <div className="rounded-2xl border border-zinc-200 bg-white space-y-2 p-4">
+                  <p className="text-sm font-bold">팀 평균 위치</p>
+                  <GpsTeamMap dots={dots} lengthM={tracks[0].frame.lengthM} widthM={tracks[0].frame.widthM} />
+                </div>
+              )}
+            </>
+          )}
+
+          {view === "player" && (
+          <>
           <div className="flex flex-wrap gap-1.5">
             {tracks.map((t) => (
               <button
@@ -222,25 +257,35 @@ export default function GpsSessionPage() {
               )}
 
               <div className="space-y-1.5">
-                <p className="text-sm font-bold">속도 구간별 거리</p>
-                {(
-                  [
-                    ["걷기 (2m/s↓)", m.zones.walkM, "bg-zinc-300"],
-                    ["조깅 (2–4)", m.zones.jogM, "bg-sky-300"],
-                    ["달리기 (4–5.5)", m.zones.runM, "bg-emerald-400"],
-                    ["고강도 (5.5–7)", m.zones.hsrM, "bg-amber-400"],
-                    ["스프린트 (7↑)", m.zones.sprintM, "bg-red-500"],
-                  ] as const
-                ).map(([label, value, color]) => (
-                  <div key={label} className="flex items-center gap-2 text-xs">
-                    <span className="w-28 shrink-0 text-zinc-500">{label}</span>
+                <p className="text-sm font-bold">속도 구간 비율</p>
+                {zoneBreakdown(m).map((z) => (
+                  <div key={z.key} className="flex items-center gap-2 text-xs">
+                    <span className="w-24 shrink-0 text-zinc-600">
+                      {z.label}
+                      <i className="block not-italic text-[10px] text-zinc-400">{z.hint}</i>
+                    </span>
                     <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
-                      <div className={`h-full ${color}`} style={{ width: `${(value / zoneTotal) * 100}%` }} />
+                      <div
+                        className={`h-full ${z.color}`}
+                        style={{ width: `${z.share !== null ? z.share * 100 : (z.distanceM / zoneTotal) * 100}%` }}
+                      />
                     </div>
-                    <span className="w-14 shrink-0 text-right tabular-nums">{Math.round(value)}m</span>
+                    <span className="w-24 shrink-0 text-right tabular-nums">
+                      {z.share !== null && <b>{Math.round(z.share * 100)}% </b>}
+                      <span className="text-zinc-400">{Math.round(z.distanceM)}m</span>
+                    </span>
                   </div>
                 ))}
+                <p className="text-[11px] text-zinc-400">
+                  {m.zonesS ? "퍼센트는 뛴 시간 기준, 미터는 그 구간에서 움직인 거리예요." : "예전 분석이라 거리 기준으로만 보여요. 구장을 다시 지정하면 시간 비율도 채워져요."}
+                </p>
               </div>
+
+              {m.areaShare && current.frame.source === "pitch" && (
+                <p className="text-xs text-zinc-600">
+                  <b>주로 뛴 곳</b> · {areaSummary(m.areaShare)}
+                </p>
+              )}
 
               <div className="space-y-1.5">
                 <p className="text-sm font-bold">분당 이동거리</p>
@@ -267,11 +312,7 @@ export default function GpsSessionPage() {
             </div>
           )}
 
-          {dots.length >= 2 && pitch && (
-            <div className="rounded-2xl border border-zinc-200 bg-white space-y-2 p-4">
-              <p className="text-sm font-bold">팀 평균 위치</p>
-              <GpsTeamMap dots={dots} lengthM={tracks[0].frame.lengthM} widthM={tracks[0].frame.widthM} />
-            </div>
+          </>
           )}
         </>
       )}

@@ -51,6 +51,21 @@ export type ZoneDistances = {
   sprintM: number; // >= 7 (25.2 km/h)
 };
 
+/** 속도 구간별로 보낸 시간(초). */
+export type ZoneSeconds = {
+  walkS: number;
+  jogS: number;
+  runS: number;
+  hsrS: number;
+  sprintS: number;
+};
+
+/** 구장을 길이·폭 방향으로 3등분했을 때 머문 시간 비율(합 1). 인덱스 0은 좌표 0쪽이다. */
+export type AreaShare = {
+  thirds: [number, number, number];
+  lanes: [number, number, number];
+};
+
 export type TrackMetrics = {
   startedAt: number;
   endedAt: number;
@@ -61,6 +76,9 @@ export type TrackMetrics = {
   avgSpeedMs: number;
   maxSpeedMs: number;
   zones: ZoneDistances;
+  /** 예전에 저장된 분석에는 없을 수 있다(다시 분석하면 채워진다). */
+  zonesS?: ZoneSeconds;
+  areaShare?: AreaShare | null;
   sprintCount: number;
   sprintDistanceM: number;
   accelCount: number;
@@ -78,6 +96,8 @@ export type Heatmap = {
   rows: number;
   cellM: number;
   data: string;
+  /** 255에 해당하는 체류 시간(초). 선수 여러 명의 히트맵을 같은 기준으로 합칠 때 쓴다. */
+  refS?: number;
 };
 
 /** 1Hz로 줄인 이동 경로. [경기 시작 후 초, x, y]. */
