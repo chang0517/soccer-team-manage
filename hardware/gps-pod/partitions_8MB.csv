@@ -1,0 +1,7 @@
+# 8MB 플래시: 앱 2MB + 나머지(약 6MB)를 로그 저장용 LittleFS로 쓴다.
+# 90분 경기 로그가 약 4MB라 한 경기는 들어가고, 다 차면 기록을 멈춘다.
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x5000,
+phy_init, data, phy,     0xe000,   0x1000,
+factory,  app,  factory, 0x10000,  0x200000,
+spiffs,   data, spiffs,  0x210000, 0x5F0000,

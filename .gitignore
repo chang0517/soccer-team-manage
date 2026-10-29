@@ -43,3 +43,6 @@ next-env.d.ts
 # local sqlite db
 /data/
 ollama-gateway/.last-ngrok-url
+
+# PlatformIO 빌드 산출물
+/hardware/gps-pod/.pio/

@@ -26,6 +26,11 @@ import type {
   VerificationPurpose,
   VoteRow,
   VoteStatus,
+  GpsPitch,
+  GpsSession,
+  GpsTrackDetail,
+  GpsTrackInput,
+  GpsTrackSummary,
 } from "./types";
 
 const globalForPg = globalThis as unknown as {
@@ -208,6 +213,34 @@ async function init() {
       model TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS gps_pitches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      corners JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS gps_sessions (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      event_id INTEGER,
+      pitch_id INTEGER,
+      played_on TEXT NOT NULL DEFAULT '',
+      is_sample BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS gps_tracks (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL,
+      member_id INTEGER,
+      device_id TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'pod',
+      summary JSONB NOT NULL,
+      heatmap JSONB NOT NULL,
+      path JSONB NOT NULL,
+      raw_gz BYTEA,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS gps_tracks_session_idx ON gps_tracks (session_id);
   `);
   await pool.query(
     "ALTER TABLE historical_stats ADD COLUMN IF NOT EXISTS bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0"
@@ -1272,4 +1305,185 @@ export async function setPollVote(
   } finally {
     client.release();
   }
+}
+
+// ---------- GPS 포드 분석 ----------
+const toGpsPitch = (r: { id: number; name: string; corners: GpsPitch["corners"]; created_at: string }): GpsPitch => ({
+  id: r.id,
+  name: r.name,
+  corners: r.corners,
+  createdAt: r.created_at,
+});
+
+export async function listGpsPitches(): Promise<GpsPitch[]> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM gps_pitches ORDER BY id");
+  return rows.map(toGpsPitch);
+}
+
+export async function getGpsPitch(id: number): Promise<GpsPitch | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM gps_pitches WHERE id=$1", [id]);
+  return rows[0] ? toGpsPitch(rows[0]) : null;
+}
+
+export async function createGpsPitch(name: string, corners: GpsPitch["corners"]): Promise<GpsPitch> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "INSERT INTO gps_pitches (name, corners) VALUES ($1,$2) RETURNING *",
+    [name, JSON.stringify(corners)]
+  );
+  return toGpsPitch(rows[0]);
+}
+
+export async function deleteGpsPitch(id: number) {
+  const pool = await ready();
+  await pool.query("UPDATE gps_sessions SET pitch_id=NULL WHERE pitch_id=$1", [id]);
+  await pool.query("DELETE FROM gps_pitches WHERE id=$1", [id]);
+}
+
+type GpsSessionDbRow = {
+  id: number;
+  title: string;
+  event_id: number | null;
+  pitch_id: number | null;
+  played_on: string;
+  is_sample: boolean;
+  created_at: string;
+  track_count: string | number;
+};
+
+const toGpsSession = (r: GpsSessionDbRow): GpsSession => ({
+  id: r.id,
+  title: r.title,
+  eventId: r.event_id,
+  pitchId: r.pitch_id,
+  playedOn: r.played_on,
+  isSample: r.is_sample,
+  trackCount: Number(r.track_count),
+  createdAt: r.created_at,
+});
+
+const GPS_SESSION_SELECT = `SELECT s.*, (SELECT COUNT(*) FROM gps_tracks t WHERE t.session_id=s.id) AS track_count
+  FROM gps_sessions s`;
+
+export async function listGpsSessions(): Promise<GpsSession[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(`${GPS_SESSION_SELECT} ORDER BY s.played_on DESC, s.id DESC`);
+  return rows.map(toGpsSession);
+}
+
+export async function getGpsSession(id: number): Promise<GpsSession | null> {
+  const pool = await ready();
+  const { rows } = await pool.query(`${GPS_SESSION_SELECT} WHERE s.id=$1`, [id]);
+  return rows[0] ? toGpsSession(rows[0]) : null;
+}
+
+export async function createGpsSession(s: {
+  title: string;
+  eventId: number | null;
+  pitchId: number | null;
+  playedOn: string;
+  isSample: boolean;
+}): Promise<GpsSession> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "INSERT INTO gps_sessions (title, event_id, pitch_id, played_on, is_sample) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+    [s.title, s.eventId, s.pitchId, s.playedOn, s.isSample]
+  );
+  return (await getGpsSession(rows[0].id)) as GpsSession;
+}
+
+export async function setGpsSessionPitch(id: number, pitchId: number | null) {
+  const pool = await ready();
+  await pool.query("UPDATE gps_sessions SET pitch_id=$1 WHERE id=$2", [pitchId, id]);
+}
+
+export async function deleteGpsSession(id: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM gps_tracks WHERE session_id=$1", [id]);
+  await pool.query("DELETE FROM gps_sessions WHERE id=$1", [id]);
+}
+
+type GpsTrackDbRow = {
+  id: number;
+  session_id: number;
+  member_id: number | null;
+  device_id: string;
+  source: "pod" | "gpx";
+  summary: { frame: GpsTrackSummary["frame"]; metrics: GpsTrackSummary["metrics"] };
+  heatmap: GpsTrackDetail["heatmap"];
+  path: GpsTrackDetail["path"];
+  created_at: string;
+};
+
+const toGpsTrack = (r: GpsTrackDbRow): GpsTrackSummary => ({
+  id: r.id,
+  sessionId: r.session_id,
+  memberId: r.member_id,
+  deviceId: r.device_id,
+  source: r.source,
+  frame: r.summary.frame,
+  metrics: r.summary.metrics,
+  createdAt: r.created_at,
+});
+
+export async function listGpsTracks(sessionId: number): Promise<GpsTrackSummary[]> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    "SELECT id, session_id, member_id, device_id, source, summary, created_at FROM gps_tracks WHERE session_id=$1 ORDER BY id",
+    [sessionId]
+  );
+  return rows.map(toGpsTrack);
+}
+
+export async function getGpsTrack(sessionId: number, id: number): Promise<GpsTrackDetail | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT * FROM gps_tracks WHERE session_id=$1 AND id=$2", [sessionId, id]);
+  if (!rows[0]) return null;
+  return { ...toGpsTrack(rows[0]), heatmap: rows[0].heatmap, path: rows[0].path };
+}
+
+export async function getGpsTrackRaw(id: number): Promise<Buffer | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT raw_gz FROM gps_tracks WHERE id=$1", [id]);
+  return rows[0]?.raw_gz ?? null;
+}
+
+// 같은 세션에 같은 선수의 로그를 다시 올리면 이전 것을 대체한다.
+export async function createGpsTrack(t: GpsTrackInput): Promise<number> {
+  const pool = await ready();
+  if (t.memberId !== null) {
+    await pool.query("DELETE FROM gps_tracks WHERE session_id=$1 AND member_id=$2", [t.sessionId, t.memberId]);
+  }
+  const { rows } = await pool.query(
+    `INSERT INTO gps_tracks (session_id, member_id, device_id, source, summary, heatmap, path, raw_gz)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+    [
+      t.sessionId,
+      t.memberId,
+      t.deviceId,
+      t.source,
+      JSON.stringify({ frame: t.analysis.frame, metrics: t.analysis.metrics }),
+      JSON.stringify(t.analysis.heatmap),
+      JSON.stringify(t.analysis.path),
+      t.rawGz,
+    ]
+  );
+  return rows[0].id;
+}
+
+export async function replaceGpsTrackAnalysis(id: number, analysis: GpsTrackInput["analysis"]) {
+  const pool = await ready();
+  await pool.query("UPDATE gps_tracks SET summary=$1, heatmap=$2, path=$3 WHERE id=$4", [
+    JSON.stringify({ frame: analysis.frame, metrics: analysis.metrics }),
+    JSON.stringify(analysis.heatmap),
+    JSON.stringify(analysis.path),
+    id,
+  ]);
+}
+
+export async function deleteGpsTrack(sessionId: number, id: number) {
+  const pool = await ready();
+  await pool.query("DELETE FROM gps_tracks WHERE session_id=$1 AND id=$2", [sessionId, id]);
 }

@@ -1,3 +1,5 @@
+import type { Heatmap, PitchCorners, TrackAnalysis, TrackMetrics, TrackPath } from "./gps/types";
+
 export type PosGroup = "GK" | "CB" | "WB" | "DM" | "AM" | "WG" | "ST";
 
 export const POS_GROUPS: PosGroup[] = ["GK", "CB", "WB", "DM", "AM", "WG", "ST"];
@@ -343,3 +345,49 @@ export interface TacticsJobRow {
   model: string;
   createdAt: string;
 }
+
+// ---------- GPS 포드 분석 ----------
+// 계산 로직과 원시 타입은 lib/gps 에 있고, 여기에는 DB·API 모양만 둔다.
+
+export type GpsPitch = {
+  id: number;
+  name: string;
+  corners: PitchCorners;
+  createdAt: string;
+};
+
+export type GpsSession = {
+  id: number;
+  title: string;
+  eventId: number | null;
+  pitchId: number | null;
+  /** 경기한 날(YYYY-MM-DD). */
+  playedOn: string;
+  /** 시뮬레이션으로 만든 예시 세션인지. */
+  isSample: boolean;
+  trackCount: number;
+  createdAt: string;
+};
+
+export type GpsTrackSummary = {
+  id: number;
+  sessionId: number;
+  memberId: number | null;
+  deviceId: string;
+  source: "pod" | "gpx";
+  frame: TrackAnalysis["frame"];
+  metrics: TrackMetrics;
+  createdAt: string;
+};
+
+export type GpsTrackDetail = GpsTrackSummary & { heatmap: Heatmap; path: TrackPath };
+
+/** 새 트랙을 저장할 때 넘기는 값. rawGz는 다시 분석할 때 쓰려고 gzip 원본을 보관한다. */
+export type GpsTrackInput = {
+  sessionId: number;
+  memberId: number | null;
+  deviceId: string;
+  source: "pod" | "gpx";
+  analysis: TrackAnalysis;
+  rawGz: Buffer | null;
+};
