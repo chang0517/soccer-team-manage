@@ -370,6 +370,21 @@ static void updateLed() {
   }
 }
 
+// 시리얼 모니터에 1초마다 상태를 보여준다. 안테나 위치를 바꿔 가며 위치 오차(hacc)를
+// 비교하거나, 기록 전에 위치가 잡혔는지 확인할 때 쓴다.
+static void printStatus() {
+  static uint32_t last = 0;
+  if (millis() - last < 1000) return;
+  last = millis();
+  const char *m = mode == IDLE ? "IDLE" : mode == ARMED ? "ARMED" : mode == REC ? "REC" : mode == SYNC ? "SYNC" : "FAULT";
+  if (havePvt && millis() - lastPvtMs < 3000) {
+    Serial.printf("[%s] fix=%u sv=%u hacc=%.1fm speed=%.2fm/s vbat=%.2fV temp=%.1fC rows=%u\n", m, lastPvt.fixType,
+                  lastPvt.numSv, lastPvt.hAccMm * 1e-3, lastPvt.gSpeedMms * 1e-3, vbatV, tempC, (unsigned)rowCount);
+  } else {
+    Serial.printf("[%s] GNSS 데이터 없음 vbat=%.2fV temp=%.1fC\n", m, vbatV, tempC);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -392,6 +407,7 @@ void loop() {
   if (mode != SYNC) pollGnss();
   checkSafety();
   updateLed();
+  printStatus();
   if (mode == SYNC) server.handleClient();
   if (mode == FAULT && millis() - lastSafety > 15000) sleepNow();
   delay(1);
