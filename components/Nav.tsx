@@ -14,7 +14,7 @@ const BASE_TABS = [
 export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, logout } = useSession();
+  const { user, loading, error, logout } = useSession();
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -91,6 +91,11 @@ export default function Nav() {
           </div>
         </div>
       </header>
+      {error && (
+        <div role="alert" className="bg-red-50 px-4 py-2 text-center text-sm text-red-700">
+          서버에 연결하지 못했어요. 잠시 후 새로고침해 보고, 계속되면 운영진에게 알려 주세요.
+        </div>
+      )}
       <nav className="no-print fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:hidden">
         <div
           className="grid"
