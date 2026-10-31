@@ -28,6 +28,11 @@ import type {
   VerificationPurpose,
   VoteRow,
   VoteStatus,
+  GpsPitch,
+  GpsSession,
+  GpsTrackDetail,
+  GpsTrackInput,
+  GpsTrackSummary,
 } from "./types";
 
 const globalForDb = globalThis as unknown as { ravenDb?: Database.Database };
@@ -192,6 +197,34 @@ function createDb(): Database.Database {
       model TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS gps_pitches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      corners TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS gps_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      event_id INTEGER,
+      pitch_id INTEGER,
+      played_on TEXT NOT NULL DEFAULT '',
+      is_sample INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS gps_tracks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      member_id INTEGER,
+      device_id TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'pod',
+      summary TEXT NOT NULL,
+      heatmap TEXT NOT NULL,
+      path TEXT NOT NULL,
+      raw_gz BLOB,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS gps_tracks_session_idx ON gps_tracks (session_id);
   `);
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as { name: string }[];
   if (!memberCols.some((c) => c.name === "is_guest")) {
@@ -1282,4 +1315,189 @@ export function setPollVote(pollId: number, memberId: number, optionIds: number[
     );
     for (const optionId of optionIds) insert.run(pollId, memberId, optionId);
   })();
+}
+
+// ---------- GPS 포드 분석 ----------
+type GpsPitchDbRow = { id: number; name: string; corners: string; created_at: string };
+
+const toGpsPitch = (r: GpsPitchDbRow): GpsPitch => ({
+  id: r.id,
+  name: r.name,
+  corners: JSON.parse(r.corners),
+  createdAt: r.created_at,
+});
+
+export function listGpsPitches(): GpsPitch[] {
+  const rows = getDb().prepare("SELECT * FROM gps_pitches ORDER BY id").all() as GpsPitchDbRow[];
+  return rows.map(toGpsPitch);
+}
+
+export function getGpsPitch(id: number): GpsPitch | null {
+  const r = getDb().prepare("SELECT * FROM gps_pitches WHERE id=?").get(id) as GpsPitchDbRow | undefined;
+  return r ? toGpsPitch(r) : null;
+}
+
+export function createGpsPitch(name: string, corners: GpsPitch["corners"]): GpsPitch {
+  const info = getDb()
+    .prepare("INSERT INTO gps_pitches (name, corners, created_at) VALUES (?,?,?)")
+    .run(name, JSON.stringify(corners), new Date().toISOString());
+  return getGpsPitch(Number(info.lastInsertRowid)) as GpsPitch;
+}
+
+export function deleteGpsPitch(id: number) {
+  const db = getDb();
+  db.prepare("UPDATE gps_sessions SET pitch_id=NULL WHERE pitch_id=?").run(id);
+  db.prepare("DELETE FROM gps_pitches WHERE id=?").run(id);
+}
+
+type GpsSessionDbRow = {
+  id: number;
+  title: string;
+  event_id: number | null;
+  pitch_id: number | null;
+  played_on: string;
+  is_sample: number;
+  created_at: string;
+  track_count: number;
+};
+
+const toGpsSession = (r: GpsSessionDbRow): GpsSession => ({
+  id: r.id,
+  title: r.title,
+  eventId: r.event_id,
+  pitchId: r.pitch_id,
+  playedOn: r.played_on,
+  isSample: !!r.is_sample,
+  trackCount: r.track_count,
+  createdAt: r.created_at,
+});
+
+const GPS_SESSION_SELECT = `SELECT s.*, (SELECT COUNT(*) FROM gps_tracks t WHERE t.session_id=s.id) AS track_count
+  FROM gps_sessions s`;
+
+export function listGpsSessions(): GpsSession[] {
+  const rows = getDb()
+    .prepare(`${GPS_SESSION_SELECT} ORDER BY s.played_on DESC, s.id DESC`)
+    .all() as GpsSessionDbRow[];
+  return rows.map(toGpsSession);
+}
+
+export function getGpsSession(id: number): GpsSession | null {
+  const r = getDb().prepare(`${GPS_SESSION_SELECT} WHERE s.id=?`).get(id) as GpsSessionDbRow | undefined;
+  return r ? toGpsSession(r) : null;
+}
+
+export function createGpsSession(s: {
+  title: string;
+  eventId: number | null;
+  pitchId: number | null;
+  playedOn: string;
+  isSample: boolean;
+}): GpsSession {
+  const info = getDb()
+    .prepare(
+      "INSERT INTO gps_sessions (title, event_id, pitch_id, played_on, is_sample, created_at) VALUES (?,?,?,?,?,?)"
+    )
+    .run(s.title, s.eventId, s.pitchId, s.playedOn, s.isSample ? 1 : 0, new Date().toISOString());
+  return getGpsSession(Number(info.lastInsertRowid)) as GpsSession;
+}
+
+export function setGpsSessionPitch(id: number, pitchId: number | null) {
+  getDb().prepare("UPDATE gps_sessions SET pitch_id=? WHERE id=?").run(pitchId, id);
+}
+
+export function deleteGpsSession(id: number) {
+  const db = getDb();
+  db.prepare("DELETE FROM gps_tracks WHERE session_id=?").run(id);
+  db.prepare("DELETE FROM gps_sessions WHERE id=?").run(id);
+}
+
+type GpsTrackDbRow = {
+  id: number;
+  session_id: number;
+  member_id: number | null;
+  device_id: string;
+  source: "pod" | "gpx";
+  summary: string;
+  heatmap?: string;
+  path?: string;
+  created_at: string;
+};
+
+const toGpsTrack = (r: GpsTrackDbRow): GpsTrackSummary => {
+  const summary = JSON.parse(r.summary) as { frame: GpsTrackSummary["frame"]; metrics: GpsTrackSummary["metrics"] };
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    memberId: r.member_id,
+    deviceId: r.device_id,
+    source: r.source,
+    frame: summary.frame,
+    metrics: summary.metrics,
+    createdAt: r.created_at,
+  };
+};
+
+export function listGpsTracks(sessionId: number): GpsTrackSummary[] {
+  const rows = getDb()
+    .prepare(
+      "SELECT id, session_id, member_id, device_id, source, summary, created_at FROM gps_tracks WHERE session_id=? ORDER BY id"
+    )
+    .all(sessionId) as GpsTrackDbRow[];
+  return rows.map(toGpsTrack);
+}
+
+export function getGpsTrack(sessionId: number, id: number): GpsTrackDetail | null {
+  const r = getDb()
+    .prepare("SELECT * FROM gps_tracks WHERE session_id=? AND id=?")
+    .get(sessionId, id) as GpsTrackDbRow | undefined;
+  if (!r) return null;
+  return { ...toGpsTrack(r), heatmap: JSON.parse(r.heatmap as string), path: JSON.parse(r.path as string) };
+}
+
+export function getGpsTrackRaw(id: number): Buffer | null {
+  const r = getDb().prepare("SELECT raw_gz FROM gps_tracks WHERE id=?").get(id) as
+    | { raw_gz: Buffer | null }
+    | undefined;
+  return r?.raw_gz ?? null;
+}
+
+// 같은 세션에 같은 선수의 로그를 다시 올리면 이전 것을 대체한다.
+export function createGpsTrack(t: GpsTrackInput): number {
+  const db = getDb();
+  if (t.memberId !== null) {
+    db.prepare("DELETE FROM gps_tracks WHERE session_id=? AND member_id=?").run(t.sessionId, t.memberId);
+  }
+  const info = db
+    .prepare(
+      `INSERT INTO gps_tracks (session_id, member_id, device_id, source, summary, heatmap, path, raw_gz, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`
+    )
+    .run(
+      t.sessionId,
+      t.memberId,
+      t.deviceId,
+      t.source,
+      JSON.stringify({ frame: t.analysis.frame, metrics: t.analysis.metrics }),
+      JSON.stringify(t.analysis.heatmap),
+      JSON.stringify(t.analysis.path),
+      t.rawGz,
+      new Date().toISOString()
+    );
+  return Number(info.lastInsertRowid);
+}
+
+export function replaceGpsTrackAnalysis(id: number, analysis: GpsTrackInput["analysis"]) {
+  getDb()
+    .prepare("UPDATE gps_tracks SET summary=?, heatmap=?, path=? WHERE id=?")
+    .run(
+      JSON.stringify({ frame: analysis.frame, metrics: analysis.metrics }),
+      JSON.stringify(analysis.heatmap),
+      JSON.stringify(analysis.path),
+      id
+    );
+}
+
+export function deleteGpsTrack(sessionId: number, id: number) {
+  getDb().prepare("DELETE FROM gps_tracks WHERE session_id=? AND id=?").run(sessionId, id);
 }
