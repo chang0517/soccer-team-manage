@@ -242,54 +242,50 @@ async function init() {
     );
     CREATE INDEX IF NOT EXISTS gps_tracks_session_idx ON gps_tracks (session_id);
   `);
-  await pool.query(
-    "ALTER TABLE historical_stats ADD COLUMN IF NOT EXISTS bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0"
-  );
-  await pool.query(
-    "ALTER TABLE members ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false"
-  );
-  await pool.query("ALTER TABLE members ADD COLUMN IF NOT EXISTS phone TEXT");
-  for (const col of ["duty_offense", "duty_defense", "water_duty", "icebox_duty"]) {
-    await pool.query(
-      `ALTER TABLE events ADD COLUMN IF NOT EXISTS ${col} TEXT NOT NULL DEFAULT ''`
-    );
-  }
-  await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS record_log JSONB");
-  await pool.query(
-    "ALTER TABLE events ADD COLUMN IF NOT EXISTS equipment_reminder_sent BOOLEAN NOT NULL DEFAULT false"
-  );
-  await pool.query("ALTER TABLE events ADD COLUMN IF NOT EXISTS scrimmage_squad JSONB");
-  await pool.query(
-    "ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER"
-  );
-  await pool.query(
-    "ALTER TABLE polls ADD COLUMN IF NOT EXISTS multi_select BOOLEAN NOT NULL DEFAULT true"
-  );
-  await pool.query("ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS raw_response TEXT");
-  await pool.query(
-    "ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT ''"
-  );
-  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_pos1 TEXT");
-  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_pos2 TEXT");
-  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_back_no INTEGER");
-  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_phone TEXT");
-  await pool.query(
-    "ALTER TABLE announcements ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'notice'"
-  );
-  await pool.query("ALTER TABLE announcements ADD COLUMN IF NOT EXISTS feedback_date TEXT");
+  // 컬럼 추가는 한 번에 보낸다. 함수와 DB가 멀리 있으면 쿼리 하나마다 왕복 시간이 붙어서,
+  // 하나씩 보내면 서버가 처음 뜰 때(특히 비어 있는 새 DB) 오래 걸린다.
+  await pool.query(`
+    ALTER TABLE historical_stats ADD COLUMN IF NOT EXISTS bonus_pts DOUBLE PRECISION NOT NULL DEFAULT 0;
+    ALTER TABLE members ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE members ADD COLUMN IF NOT EXISTS phone TEXT;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS duty_offense TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS duty_defense TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS water_duty TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS icebox_duty TEXT NOT NULL DEFAULT '';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS record_log JSONB;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS equipment_reminder_sent BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS scrimmage_squad JSONB;
+    ALTER TABLE hall_of_fame ADD COLUMN IF NOT EXISTS clean_sheet_first_id INTEGER;
+    ALTER TABLE polls ADD COLUMN IF NOT EXISTS multi_select BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS raw_response TEXT;
+    ALTER TABLE tactics_jobs ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_pos1 TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_pos2 TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_back_no INTEGER;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS draft_phone TEXT;
+    ALTER TABLE announcements ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'notice';
+    ALTER TABLE announcements ADD COLUMN IF NOT EXISTS feedback_date TEXT;
+  `);
   const { rows } = await pool.query("SELECT COUNT(*)::int AS c FROM members");
-  if (rows[0].c === 0) {
-    for (const [name, p1, p2] of ROSTER) {
-      await pool.query(
-        "INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES ($1, NULL, $2, $3, false)",
-        [name, p1, p2]
-      );
-    }
+  if (rows[0].c === 0 && ROSTER.length > 0) {
+    // 명단 전체를 한 번에 넣는다.
+    const values = ROSTER.map((_, i) => `($${i * 3 + 1}, NULL, $${i * 3 + 2}, $${i * 3 + 3}, false)`).join(", ");
+    await pool.query(
+      `INSERT INTO members (name, back_no, pos1, pos2, is_guest) VALUES ${values}`,
+      ROSTER.flatMap(([name, p1, p2]) => [name, p1, p2])
+    );
   }
 }
 
 async function ready(): Promise<Pool> {
-  if (!globalForPg.ravenPgReady) globalForPg.ravenPgReady = init();
+  // 초기화가 실패하면 그 실패를 저장해 두지 않는다. 저장해 두면 이 인스턴스는 다시 뜰 때까지
+  // 모든 요청이 실패하고, 다음 요청이 다시 시도할 수 있어야 일시적인 오류에서 회복된다.
+  if (!globalForPg.ravenPgReady) {
+    globalForPg.ravenPgReady = init().catch((e) => {
+      globalForPg.ravenPgReady = undefined;
+      throw e;
+    });
+  }
   await globalForPg.ravenPgReady;
   return getPool();
 }

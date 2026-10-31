@@ -40,7 +40,7 @@
 - **DB**: `DATABASE_URL`이 있으면 PostgreSQL(Supabase 등, `lib/pg.ts`), 없으면 로컬 SQLite(`better-sqlite3`, `lib/sqlite.ts`). `lib/db.ts`가 두 구현을 같은 인터페이스로 감쌉니다.
 - **인증**: 자체 세션 쿠키 + bcryptjs
 - **분석**: `lib/gps/`의 순수 TypeScript 모듈. 업로드 요청 안에서 선수당 1초 미만으로 계산합니다.
-- **배포**: Vercel (함수 리전은 지금 `bom1`=뭄바이. DB를 서울로 옮길 때 `icn1`로 같이 바꿈)
+- **배포**: Vercel (서울 리전 `icn1`, DB도 서울)
 
 ## 프로젝트 구조
 
@@ -87,7 +87,7 @@ npm run lint    # ESLint
 
 ## 배포
 
-Vercel에 배포하며(`vercel.json`의 함수 리전은 DB와 같은 곳인 `bom1`), 위 환경 변수를 Vercel 프로젝트 설정에 등록하면 됩니다. 함수와 DB를 둘 다 서울로 옮기는 절차는 [docs/db-region-migration.md](docs/db-region-migration.md)를 참고하세요.
+Vercel에 배포하며(`vercel.json`의 함수 리전은 DB와 같은 서울 `icn1`), 위 환경 변수를 Vercel 프로젝트 설정에 등록하면 됩니다. DB를 다른 리전으로 옮기는 절차는 [docs/db-region-migration.md](docs/db-region-migration.md)를 참고하세요.
 
 ## 관련 문서
 
