@@ -1,8 +1,8 @@
 {
   "name": "Raven FC",
   "short_name": "Raven FC",
-  "description": "Raven FC 일정·스쿼드·기록 관리",
-  "start_url": "/",
+  "description": "Raven FC 조끼 GPS 경기 분석",
+  "start_url": "/gps",
   "display": "standalone",
   "background_color": "#fafafa",
   "theme_color": "#1e3a8a",

@@ -300,12 +300,6 @@ export default function AdminPage() {
           <Link href="/members" className="font-semibold text-blue-700">
             선수 명단 관리 →
           </Link>
-          <Link href="/admin/fines" className="font-semibold text-blue-700">
-            이번 달 미투표자 →
-          </Link>
-          <Link href="/admin/historical-stats" className="font-semibold text-blue-700">
-            역대 기록 관리 →
-          </Link>
         </div>
       </div>
       <p className="text-sm text-zinc-500">
@@ -321,7 +315,7 @@ export default function AdminPage() {
             </p>
             <p className="mt-1 text-xs text-amber-700">
               승인 때 “나중에 연결”로 남겨둔 계정이에요. 로그인은 되지만
-              투표·기록 같은 기능은 멤버와 연결돼야 쓸 수 있어요. 처음 가입하는
+              내 경기 기록은 멤버와 연결돼야 볼 수 있어요. 처음 가입하는
               신규 팀원이라 명단에 아직 없으면 “새 멤버로 추가”를 눌러주세요.
             </p>
           </div>

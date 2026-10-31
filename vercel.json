@@ -1,13 +1,5 @@
 {
-  "regions": ["bom1"],
-  "crons": [
-    {
-      "path": "/api/cron/squad",
-      "schedule": "0 21 * * *"
-    },
-    {
-      "path": "/api/cron/equipment-reminder",
-      "schedule": "0 12 * * *"
-    }
+  "regions": [
+    "bom1"
   ]
 }
