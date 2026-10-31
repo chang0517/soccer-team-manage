@@ -147,7 +147,7 @@ Vercel Cron(`vercel.json`)으로 매일 두 번 실행됩니다 (Hobby 플랜 �
 - **인증**: 자체 세션 쿠키 + bcryptjs
 - **푸시 알림**: `web-push` (VAPID)
 - **AI/SMS**: 맥미니 로컬 게이트웨이 경유 (Ollama, Messages.app)
-- **배포**: Vercel (서울 리전 `bom1`), Vercel Cron
+- **배포**: Vercel (서울 리전 `icn1`), Vercel Cron
 
 ## 프로젝트 구조
 
@@ -201,7 +201,7 @@ npm run lint    # ESLint
 
 ## 배포
 
-Vercel에 배포하며(`vercel.json`에 리전 `bom1`, cron 스케줄 정의), 위 환경 변수를 Vercel 프로젝트 설정에 등록하면 됩니다. 자세한 배포 방법은 [Next.js 배포 문서](https://nextjs.org/docs/app/building-your-application/deploying)를 참고하세요.
+Vercel에 배포하며(`vercel.json`에 리전 `icn1`, cron 스케줄 정의), 위 환경 변수를 Vercel 프로젝트 설정에 등록하면 됩니다. 자세한 배포 방법은 [Next.js 배포 문서](https://nextjs.org/docs/app/building-your-application/deploying)를 참고하세요.
 
 ---
 
