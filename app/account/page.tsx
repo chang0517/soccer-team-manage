@@ -64,13 +64,6 @@ export default function AccountPage() {
         </div>
       )}
 
-      <Link
-        href="/gps"
-        className="block rounded-2xl border border-zinc-200 bg-white p-4 text-sm font-semibold text-blue-700"
-      >
-        GPS 경기 분석 →
-      </Link>
-
       <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
         <div>
           <label className="text-xs font-semibold text-zinc-500">현재 비밀번호</label>
