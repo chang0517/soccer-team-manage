@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import type { TrackPath } from "./gps/types";
 import fs from "fs";
 import path from "path";
 import { ROSTER } from "./roster";
@@ -1447,12 +1448,31 @@ export function listGpsTracks(sessionId: number): GpsTrackSummary[] {
   return rows.map(toGpsTrack);
 }
 
+// 원본 로그(raw_gz)와 이동 경로(path)는 용량이 커서 상세 조회에서는 읽지 않는다.
+const GPS_TRACK_DETAIL_COLS = "id, session_id, member_id, device_id, source, summary, heatmap, created_at";
+
 export function getGpsTrack(sessionId: number, id: number): GpsTrackDetail | null {
   const r = getDb()
-    .prepare("SELECT * FROM gps_tracks WHERE session_id=? AND id=?")
+    .prepare(`SELECT ${GPS_TRACK_DETAIL_COLS} FROM gps_tracks WHERE session_id=? AND id=?`)
     .get(sessionId, id) as GpsTrackDbRow | undefined;
   if (!r) return null;
-  return { ...toGpsTrack(r), heatmap: JSON.parse(r.heatmap as string), path: JSON.parse(r.path as string) };
+  return { ...toGpsTrack(r), heatmap: JSON.parse(r.heatmap as string) };
+}
+
+// 세션 화면이 처음 열릴 때 바로 보여줄 첫 선수(목록의 첫 번째와 같다).
+export function getFirstGpsTrack(sessionId: number): GpsTrackDetail | null {
+  const r = getDb()
+    .prepare(`SELECT ${GPS_TRACK_DETAIL_COLS} FROM gps_tracks WHERE session_id=? ORDER BY id LIMIT 1`)
+    .get(sessionId) as GpsTrackDbRow | undefined;
+  if (!r) return null;
+  return { ...toGpsTrack(r), heatmap: JSON.parse(r.heatmap as string) };
+}
+
+export function getGpsTrackPath(sessionId: number, id: number): TrackPath | null {
+  const r = getDb().prepare("SELECT path FROM gps_tracks WHERE session_id=? AND id=?").get(sessionId, id) as
+    | { path: string }
+    | undefined;
+  return r ? JSON.parse(r.path) : null;
 }
 
 export function getGpsTrackRaw(id: number): Buffer | null {

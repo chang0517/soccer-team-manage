@@ -1,6 +1,7 @@
 import { getSessionUser, requireAdmin } from "@/lib/auth";
 import {
   deleteGpsSession,
+  getFirstGpsTrack,
   getGpsPitch,
   getGpsSession,
   listGpsTracks,
@@ -17,15 +18,18 @@ export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const session = await getGpsSession(Number(id));
   if (!session) return Response.json({ error: "not found" }, { status: 404 });
-  const [tracks, members, pitch] = await Promise.all([
+  // 첫 선수의 히트맵까지 한 번에 내려줘서, 화면이 선수 상세를 따로 기다리지 않게 한다.
+  const [tracks, members, pitch, firstTrack] = await Promise.all([
     listGpsTracks(session.id),
     listMembers(),
     session.pitchId === null ? Promise.resolve(null) : getGpsPitch(session.pitchId),
+    getFirstGpsTrack(session.id),
   ]);
   const names = new Map(members.map((m) => [m.id, m.name]));
   return Response.json({
     session,
     pitch,
+    firstTrack,
     tracks: tracks.map((t) => ({
       ...t,
       memberName: t.memberId === null ? null : (names.get(t.memberId) ?? null),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import GpsHeatmap from "@/components/GpsHeatmap";
@@ -9,10 +9,11 @@ import GpsTeamPanel from "@/components/GpsTeamPanel";
 import GpsUpload from "@/components/GpsUpload";
 import { useSession } from "@/components/useSession";
 import { areaSummary, zoneBreakdown } from "@/lib/gps/zones";
+import type { TrackPath } from "@/lib/gps/types";
 import type { GpsPitch, GpsSession, GpsTrackDetail, GpsTrackSummary, Member } from "@/lib/types";
 
 type TrackRow = GpsTrackSummary & { memberName: string | null };
-type Detail = { session: GpsSession; pitch: GpsPitch | null; tracks: TrackRow[] };
+type Detail = { session: GpsSession; pitch: GpsPitch | null; tracks: TrackRow[]; firstTrack: GpsTrackDetail | null };
 
 const kmh = (ms: number) => (ms * 3.6).toFixed(1);
 const km = (m: number) => (m / 1000).toFixed(2);
@@ -40,52 +41,119 @@ export default function GpsSessionPage() {
   const isAdmin = user?.role === "admin";
   const [detail, setDetail] = useState<Detail | null>(null);
   const [missing, setMissing] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [pitches, setPitches] = useState<GpsPitch[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
-  const [track, setTrack] = useState<GpsTrackDetail | null>(null);
+  // 한 번 받은 선수 상세(히트맵)와 이동 경로는 보관해서, 선수를 바꿔도 다시 받지 않는다.
+  const [cache, setCache] = useState<Record<number, GpsTrackDetail>>({});
+  const [paths, setPaths] = useState<Record<number, TrackPath>>({});
+  const cacheRef = useRef(cache);
   const [showPath, setShowPath] = useState(false);
   const [view, setView] = useState<"player" | "team">("player");
 
-  // 변경 후 다시 불러오려고 숫자를 올린다(이펙트가 이 값에 반응).
-  const [version, setVersion] = useState(0);
-  const load = useCallback(() => setVersion((v) => v + 1), []);
-
   useEffect(() => {
-    if (!user) return;
+    cacheRef.current = cache;
+  }, [cache]);
+
+  // 변경(업로드, 구장 바꾸기, 삭제) 뒤에 다시 불러오려고 숫자를 올린다. 보관해 둔 것도 비운다.
+  const [version, setVersion] = useState(0);
+  const load = useCallback(() => {
+    setCache({});
+    setPaths({});
+    setVersion((v) => v + 1);
+  }, []);
+
+  // 로그인 확인(/api/auth/me)을 기다리지 않고 바로 불러온다. 로그인이 안 됐으면 서버가 401을
+  // 돌려주고, 화면은 아래에서 로그인 안내를 보여준다. 첫 선수의 히트맵도 이 응답에 들어 있다.
+  useEffect(() => {
     let alive = true;
-    fetch(`/api/gps/sessions/${id}`).then(async (res) => {
-      if (!alive) return;
-      if (!res.ok) {
-        setMissing(true);
-        return;
-      }
-      const d: Detail = await res.json();
-      if (!alive) return;
-      setDetail(d);
-      setSelected((cur) => (cur !== null && d.tracks.some((t) => t.id === cur) ? cur : (d.tracks[0]?.id ?? null)));
-    });
+    fetch(`/api/gps/sessions/${id}`)
+      .then(async (res) => {
+        if (!alive || res.status === 401) return;
+        if (res.status === 404) {
+          setMissing(true);
+          return;
+        }
+        if (!res.ok) {
+          setFailed(true);
+          return;
+        }
+        const d: Detail = await res.json();
+        if (!alive) return;
+        setFailed(false);
+        setDetail(d);
+        if (d.firstTrack) {
+          const first = d.firstTrack;
+          setCache((c) => ({ ...c, [first.id]: first }));
+        }
+        setSelected((cur) => (cur !== null && d.tracks.some((t) => t.id === cur) ? cur : (d.tracks[0]?.id ?? null)));
+      })
+      .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
     };
-  }, [user, id, version]);
+  }, [id, version]);
 
+  // 선수 목록과 구장 목록은 운영진의 업로드·구장 변경 화면에서만 쓴다.
   useEffect(() => {
-    if (!user) return;
+    if (!isAdmin) return;
     fetch("/api/members").then((r) => (r.ok ? r.json() : [])).then(setMembers);
     fetch("/api/gps/pitches").then((r) => (r.ok ? r.json() : [])).then(setPitches);
-  }, [user]);
+  }, [isAdmin]);
 
+  // 고른 선수의 상세가 아직 없을 때만 받는다.
+  const hasTrack = selected !== null && cache[selected] !== undefined;
   useEffect(() => {
-    if (selected === null) return;
+    if (selected === null || hasTrack) return;
     let alive = true;
     fetch(`/api/gps/sessions/${id}/tracks/${selected}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((t) => alive && setTrack(t));
+      .then((t: GpsTrackDetail | null) => {
+        if (alive && t) setCache((c) => ({ ...c, [t.id]: t }));
+      });
     return () => {
       alive = false;
     };
-  }, [id, selected, detail]);
+  }, [id, selected, hasTrack]);
+
+  // 나머지 선수는 화면이 뜬 뒤에 하나씩 미리 받아 둔다(선수를 눌렀을 때 바로 보이게).
+  useEffect(() => {
+    if (!detail) return;
+    let alive = true;
+    (async () => {
+      for (const t of detail.tracks) {
+        if (!alive) return;
+        if (cacheRef.current[t.id]) continue;
+        try {
+          const r = await fetch(`/api/gps/sessions/${id}/tracks/${t.id}`);
+          if (!alive || !r.ok) continue;
+          const d: GpsTrackDetail = await r.json();
+          setCache((c) => (c[d.id] ? c : { ...c, [d.id]: d }));
+        } catch {
+          return;
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id, detail]);
+
+  // 이동 경로는 "겹쳐 보기"를 켰을 때만 받는다.
+  const hasPath = selected !== null && paths[selected] !== undefined;
+  useEffect(() => {
+    if (!showPath || selected === null || hasPath) return;
+    let alive = true;
+    fetch(`/api/gps/sessions/${id}/tracks/${selected}/path`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { path: TrackPath } | null) => {
+        if (alive && d) setPaths((p) => ({ ...p, [selected]: d.path }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, selected, showPath, hasPath]);
 
   const dots = useMemo(() => {
     if (!detail) return [];
@@ -115,10 +183,21 @@ export default function GpsSessionPage() {
       </div>
     );
   }
+  if (failed) {
+    return (
+      <div className="space-y-3 pt-10 text-center">
+        <p className="text-sm text-zinc-500">경기 기록을 불러오지 못했어요. 새로고침해 보세요.</p>
+        <Link href="/gps" className="font-semibold text-blue-700">
+          목록으로
+        </Link>
+      </div>
+    );
+  }
   if (!detail) return <p className="py-10 text-center text-sm text-zinc-400">불러오는 중…</p>;
 
   const { session, pitch, tracks } = detail;
   const current = tracks.find((t) => t.id === selected) ?? null;
+  const track = selected !== null ? cache[selected] : undefined;
 
   const changePitch = async (value: string) => {
     const res = await fetch(`/api/gps/sessions/${session.id}`, {
@@ -137,10 +216,8 @@ export default function GpsSessionPage() {
   const removeTrack = async (t: TrackRow) => {
     if (!confirm(`${trackLabel(t)}의 기록을 지울까요?`)) return;
     const res = await fetch(`/api/gps/sessions/${session.id}/tracks/${t.id}`, { method: "DELETE" });
-    if (res.ok) {
-      setTrack(null);
-      load();
-    } else alert("지우지 못했어요.");
+    if (res.ok) load();
+    else alert("지우지 못했어요.");
   };
 
   const removeSession = async () => {
@@ -233,28 +310,35 @@ export default function GpsSessionPage() {
                 <Stat label="기록 시간" value={Math.round(m.durationS / 60).toString()} unit="분" />
               </div>
 
-              {track && track.id === current.id && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold">히트맵</p>
-                    <label className="flex items-center gap-1.5 text-xs text-zinc-500">
-                      <input type="checkbox" checked={showPath} onChange={(e) => setShowPath(e.target.checked)} />
-                      이동 경로 겹쳐 보기
-                    </label>
-                  </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold">히트맵</p>
+                  <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+                    <input type="checkbox" checked={showPath} onChange={(e) => setShowPath(e.target.checked)} />
+                    이동 경로 겹쳐 보기{showPath && !hasPath ? " (불러오는 중…)" : ""}
+                  </label>
+                </div>
+                {track ? (
                   <GpsHeatmap
                     heatmap={track.heatmap}
                     lengthM={track.frame.lengthM}
                     widthM={track.frame.widthM}
-                    path={showPath ? track.path : null}
+                    path={showPath && selected !== null ? (paths[selected] ?? null) : null}
                   />
-                  {current.frame.source === "auto" && (
-                    <p className="text-xs text-amber-700">
-                      구장이 등록되지 않아 이 선수의 궤적으로 구장 범위를 추정했어요. 선수끼리 위치를 비교하려면 구장을 지정하세요.
-                    </p>
-                  )}
-                </div>
-              )}
+                ) : (
+                  <div
+                    className="flex w-full animate-pulse items-center justify-center rounded-2xl bg-zinc-200 text-xs text-zinc-500"
+                    style={{ aspectRatio: `${current.frame.lengthM} / ${current.frame.widthM}` }}
+                  >
+                    히트맵 불러오는 중…
+                  </div>
+                )}
+                {current.frame.source === "auto" && (
+                  <p className="text-xs text-amber-700">
+                    구장이 등록되지 않아 이 선수의 궤적으로 구장 범위를 추정했어요. 선수끼리 위치를 비교하려면 구장을 지정하세요.
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-1.5">
                 <p className="text-sm font-bold">속도 구간 비율</p>

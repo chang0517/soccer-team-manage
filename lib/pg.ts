@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { ROSTER } from "./roster";
+import type { TrackPath } from "./gps/types";
 import type {
   AnnouncementCategory,
   AnnouncementRow,
@@ -1409,7 +1410,7 @@ type GpsTrackDbRow = {
   source: "pod" | "gpx";
   summary: { frame: GpsTrackSummary["frame"]; metrics: GpsTrackSummary["metrics"] };
   heatmap: GpsTrackDetail["heatmap"];
-  path: GpsTrackDetail["path"];
+  path: TrackPath;
   created_at: string;
 };
 
@@ -1433,11 +1434,35 @@ export async function listGpsTracks(sessionId: number): Promise<GpsTrackSummary[
   return rows.map(toGpsTrack);
 }
 
+// 원본 로그(raw_gz)와 이동 경로(path)는 용량이 커서 상세 조회에서는 읽지 않는다.
+// SELECT *로 읽으면 선수 한 명을 볼 때마다 수백 KB가 DB에서 함수로 옮겨진다.
+const GPS_TRACK_DETAIL_COLS = "id, session_id, member_id, device_id, source, summary, heatmap, created_at";
+
 export async function getGpsTrack(sessionId: number, id: number): Promise<GpsTrackDetail | null> {
   const pool = await ready();
-  const { rows } = await pool.query("SELECT * FROM gps_tracks WHERE session_id=$1 AND id=$2", [sessionId, id]);
+  const { rows } = await pool.query(
+    `SELECT ${GPS_TRACK_DETAIL_COLS} FROM gps_tracks WHERE session_id=$1 AND id=$2`,
+    [sessionId, id]
+  );
   if (!rows[0]) return null;
-  return { ...toGpsTrack(rows[0]), heatmap: rows[0].heatmap, path: rows[0].path };
+  return { ...toGpsTrack(rows[0]), heatmap: rows[0].heatmap };
+}
+
+// 세션 화면이 처음 열릴 때 바로 보여줄 첫 선수(목록의 첫 번째와 같다).
+export async function getFirstGpsTrack(sessionId: number): Promise<GpsTrackDetail | null> {
+  const pool = await ready();
+  const { rows } = await pool.query(
+    `SELECT ${GPS_TRACK_DETAIL_COLS} FROM gps_tracks WHERE session_id=$1 ORDER BY id LIMIT 1`,
+    [sessionId]
+  );
+  if (!rows[0]) return null;
+  return { ...toGpsTrack(rows[0]), heatmap: rows[0].heatmap };
+}
+
+export async function getGpsTrackPath(sessionId: number, id: number): Promise<TrackPath | null> {
+  const pool = await ready();
+  const { rows } = await pool.query("SELECT path FROM gps_tracks WHERE session_id=$1 AND id=$2", [sessionId, id]);
+  return rows[0] ? rows[0].path : null;
 }
 
 export async function getGpsTrackRaw(id: number): Promise<Buffer | null> {

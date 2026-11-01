@@ -1,4 +1,4 @@
-import type { Heatmap, PitchCorners, TrackAnalysis, TrackMetrics, TrackPath } from "./gps/types";
+import type { Heatmap, PitchCorners, TrackAnalysis, TrackMetrics } from "./gps/types";
 
 export type PosGroup = "GK" | "CB" | "WB" | "DM" | "AM" | "WG" | "ST";
 
@@ -380,7 +380,8 @@ export type GpsTrackSummary = {
   createdAt: string;
 };
 
-export type GpsTrackDetail = GpsTrackSummary & { heatmap: Heatmap; path: TrackPath };
+/** 선수 상세. 이동 경로(path)는 용량이 커서 따로 불러온다(getGpsTrackPath). */
+export type GpsTrackDetail = GpsTrackSummary & { heatmap: Heatmap };
 
 /** 새 트랙을 저장할 때 넘기는 값. rawGz는 다시 분석할 때 쓰려고 gzip 원본을 보관한다. */
 export type GpsTrackInput = {
