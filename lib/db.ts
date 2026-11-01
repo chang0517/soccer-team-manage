@@ -1,4 +1,5 @@
 import * as sqlite from "./sqlite";
+import type { TrackPath } from "./gps/types";
 import * as pg from "./pg";
 import type {
   AnnouncementRow,
@@ -395,6 +396,12 @@ export async function listGpsTracks(sessionId: number): Promise<GpsTrackSummary[
 }
 export async function getGpsTrack(sessionId: number, id: number): Promise<GpsTrackDetail | null> {
   return usePg ? pg.getGpsTrack(sessionId, id) : sqlite.getGpsTrack(sessionId, id);
+}
+export async function getFirstGpsTrack(sessionId: number): Promise<GpsTrackDetail | null> {
+  return usePg ? pg.getFirstGpsTrack(sessionId) : sqlite.getFirstGpsTrack(sessionId);
+}
+export async function getGpsTrackPath(sessionId: number, id: number): Promise<TrackPath | null> {
+  return usePg ? pg.getGpsTrackPath(sessionId, id) : sqlite.getGpsTrackPath(sessionId, id);
 }
 export async function getGpsTrackRaw(id: number): Promise<Buffer | null> {
   return usePg ? pg.getGpsTrackRaw(id) : sqlite.getGpsTrackRaw(id);
